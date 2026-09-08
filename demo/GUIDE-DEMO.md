@@ -47,12 +47,20 @@ capacités de LLDraw en une seule session.
   `data/state.json` et régénère les images (nécessite Pillow :
   `pip install pillow`)
 
-## Régénérer la démo
+## Régénérer la démo (Windows, Linux, macOS)
 
 ```bash
-python3 demo_datacenter.py     # ajoute (ou remplace) le workspace « demo-dc »
+python demo_datacenter.py      # ou python3 selon la machine
 ```
 
-Le workspace existant n'est pas touché ; une sauvegarde de l'état est créée
-(`data/state.json.bak-demo`). Le serveur étant la source de vérité, **recharger
-la page (F5)** avant de manipuler l'application après une régénération.
+- Nécessite Pillow : `pip install pillow`
+- Ajoute (ou remplace) le workspace « demo-dc » dans `data/state.json` et
+  rafraîchit `demo/plan-baies.jpg` + `demo/topologie.jpg`
+- Le workspace existant n'est pas touché ; une sauvegarde de l'état est créée
+  (`data/state.json.bak-demo`) si un état existait déjà
+
+⚠️ **La démo vit dans `data/state.json`, non versionné** : elle ne suit pas Git.
+Sur une nouvelle machine (ou après un clone frais), lancer le script une fois
+pour faire apparaître le workspace, puis **recharger la page (F5)** — le
+serveur est la source de vérité. Le PDF LLD, lui, se génère depuis
+l'application : menu **Exporter → 📕 Document LLD**.

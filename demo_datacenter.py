@@ -16,21 +16,55 @@ Le workspace existant de l'utilisateur est conservé ; ce script AJOUTE
 import base64
 import io
 import json
+import os
 import random
 import shutil
+import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = '/home/user/LLDraw'
-STATE_PATH = ROOT + '/data/state.json'
-FONT_DIR = '/usr/share/fonts/truetype/dejavu/'
+# Racine du projet = dossier contenant ce script (portable Windows / Linux / macOS)
+ROOT = os.path.dirname(os.path.abspath(__file__))
+STATE_PATH = os.path.join(ROOT, 'data', 'state.json')
 random.seed(42)
 
 DEMO_WS_ID = 'demo-dc'
 
 
+# ------------------------------------------------------------- polices --
+def _find_font(bold):
+    """Cherche une police TTF disponible sur le système (Linux, Windows, macOS)."""
+    names = (['DejaVuSans-Bold.ttf', 'arialbd.ttf', 'Arial Bold.ttf',
+              'calibrib.ttf', 'Consolas-Bold.ttf']
+             if bold else
+             ['DejaVuSans.ttf', 'arial.ttf', 'Arial.ttf',
+              'calibri.ttf', 'Consolas.ttf'])
+    windir = os.environ.get('WINDIR', r'C:\Windows')
+    dirs = ['/usr/share/fonts/truetype/dejavu',
+            os.path.join(windir, 'Fonts'),
+            'C:/Windows/Fonts',
+            '/System/Library/Fonts/Supplemental',
+            '/Library/Fonts']
+    for d in dirs:
+        for n in names:
+            p = os.path.join(d, n)
+            if os.path.isfile(p):
+                return p
+    return None
+
+
+_FONT_B = _find_font(True)
+_FONT_R = _find_font(False)
+
+
 def F(size, bold=True):
-    return ImageFont.truetype(FONT_DIR + ('DejaVuSans-Bold.ttf' if bold else 'DejaVuSans.ttf'), size)
+    path = _FONT_B if bold else _FONT_R
+    if path:
+        return ImageFont.truetype(path, size)
+    try:
+        return ImageFont.load_default(size=size)   # Pillow récent
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def hx(h):
@@ -254,7 +288,11 @@ def face_brush(name):
 
 
 # -------------------------------------------------------- WatchGuard (photo) --
-WG_BASE = Image.open(ROOT + '/assets/watchguard.jpg').convert('RGB')
+_WG_PATH = os.path.join(ROOT, 'assets', 'watchguard.jpg')
+if not os.path.isfile(_WG_PATH):
+    raise SystemExit('Image introuvable : %s\n'
+                     'Lance le script depuis un clone complet du dépôt (git pull).' % _WG_PATH)
+WG_BASE = Image.open(_WG_PATH).convert('RGB')
 if WG_BASE.width != 600:
     WG_BASE = WG_BASE.resize((600, max(1, round(WG_BASE.height * 600 / WG_BASE.width))))
 WG_H = WG_BASE.height
@@ -787,7 +825,8 @@ def build():
     if not isinstance(state.get('workspaces'), list):
         state['workspaces'] = []
 
-    shutil.copyfile(STATE_PATH, STATE_PATH + '.bak-demo')
+    if os.path.isfile(STATE_PATH):
+        shutil.copyfile(STATE_PATH, STATE_PATH + '.bak-demo')
 
     # retire un éventuel précédent passage
     state['workspaces'] = [w for w in state['workspaces'] if w.get('id') != DEMO_WS_ID]
@@ -809,6 +848,7 @@ def build():
     state['workspaces'].append(ws)
     state['activeWorkspaceId'] = DEMO_WS_ID
 
+    os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
     with open(STATE_PATH, 'w', encoding='utf-8') as f:
         json.dump(state, f, ensure_ascii=False, separators=(',', ':'))
 
@@ -993,10 +1033,18 @@ def render_topo(ws, out_path):
 
 
 if __name__ == '__main__':
+    # Consoles Windows : s'assurer que les accents s'affichent
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
     ws = build()
-    pw, ph = render_plan(ws, ROOT + '/.tmp_demo_plan.jpg')
-    tw, th = render_topo(ws, ROOT + '/.tmp_demo_topo.jpg')
-    with open(ROOT + '/.tmp_demo_dims.json', 'w') as f:
-        json.dump({'pw': pw, 'ph': ph, 'tw': tw, 'th': th}, f)
-    print('Plan  : %dx%d -> .tmp_demo_plan.jpg' % (pw, ph))
-    print('Topo  : %dx%d -> .tmp_demo_topo.jpg' % (tw, th))
+    demo_dir = os.path.join(ROOT, 'demo')
+    os.makedirs(demo_dir, exist_ok=True)
+    pw, ph = render_plan(ws, os.path.join(demo_dir, 'plan-baies.jpg'))
+    tw, th = render_topo(ws, os.path.join(demo_dir, 'topologie.jpg'))
+    print('Plan  : %dx%d -> demo/plan-baies.jpg' % (pw, ph))
+    print('Topo  : %dx%d -> demo/topologie.jpg' % (tw, th))
+    print('')
+    print('Workspace « Datacenter Démo » prêt — ouvre (ou recharge F5) l’application.')
+    print('PDF : dans l’application, menu Exporter → 📕 Document LLD.')
