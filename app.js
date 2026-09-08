@@ -80,6 +80,18 @@ function normLldInfo(w) {
     if (typeof L[k] !== 'string') L[k] = '';
     L[k] = L[k].slice(0, 80);
   }
+  // Textes documentaires (ch. 1, 2.2 et 3 du dossier LLD)
+  for (const k of ['objectif', 'existant', 'architecture']) {
+    if (typeof L[k] !== 'string') L[k] = '';
+    L[k] = L[k].slice(0, 4000);
+  }
+  // Nomenclature (ch. 4) : type d'objet -> préfixe -> exemple -> règle de nommage
+  L.nomen = Array.isArray(L.nomen) ? L.nomen.filter(r => r && typeof r === 'object').map(r => ({
+    type:    String(r.type ?? '').slice(0, 40),
+    prefix:  String(r.prefix ?? '').slice(0, 20),
+    example: String(r.example ?? '').slice(0, 60),
+    rule:    String(r.rule ?? '').slice(0, 100)
+  })) : [];
   L.revs = Array.isArray(L.revs) ? L.revs.filter(r => r && typeof r === 'object').map(r => ({
     rev: String(r.rev ?? '').slice(0, 10),
     date: String(r.date ?? '').slice(0, 10),
@@ -2278,6 +2290,7 @@ document.addEventListener('keydown', e => {
     hideCablePopoverSafe();
     hideDevicePopover();
     $('#device-modal').classList.add('hidden');
+    $('#lld-modal').classList.add('hidden');
   }
 });
 /* ============================================================
@@ -2847,11 +2860,26 @@ function setCablingMode(on) {
 }
 
 /* ============================================================
-   INFOS DOSSIER LLD — client, auteur, versions, registre VLANs
+   INFOS DOSSIER LLD — onglets Document / Réseau
+   (Sites et Chapitres arriveront avec les lots 2 et 5)
    ============================================================ */
 
 const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Auteur', 128], ['note', 'Modifications', 'flex']];
-const LLD_VLAN_COLS = [['vid', 'VLAN', 52], ['name', 'Nom', 108], ['subnet', 'Subnet', 132], ['gw', 'Passerelle', 118], ['purpose', 'Usage', 'flex']];
+// Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
+const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
+const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
+
+// Types devinés à partir des préfixes les plus courants (bouton « Générer »)
+const NOMEN_GUESS = {
+  FW: 'Pare-feu', SW: 'Switch', AP: 'Borne WiFi', SRV: 'Serveur',
+  NAS: 'Stockage (NAS)', SAN: 'Stockage (SAN)', STO: 'Stockage',
+  IDS: 'Intrusion (IDS)', IPS: 'Intrusion (IPS)',
+  CAM: 'CCTV (caméra)', NVR: 'CCTV (enregistreur)', DVR: 'CCTV (enregistreur)', CCTV: 'CCTV',
+  PTG: 'Pointage', SPO: 'Pointage (SPO)', PTA: 'Pointage',
+  RT: 'Routeur', RTR: 'Routeur', GW: 'Passerelle',
+  CAB: 'Cordon / câble', PDU: 'Énergie (PDU)', UPS: 'Onduleur',
+  ODF: 'Brassage (panneau)', IDF: 'Brassage (panneau)'
+};
 
 function lldRowsFrom(container) {
   return [...container.querySelectorAll('.lld-row')].map(row => {
@@ -2884,6 +2912,19 @@ function lldAddRow(container, cols, data = {}) {
   container.appendChild(row);
 }
 
+// ---- Onglets de la modale ----
+document.querySelectorAll('#lld-modal .lld-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('#lld-modal .lld-tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('#lld-modal .lld-pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== btn.dataset.tab));
+  });
+});
+function lldShowTab(name) {
+  const btn = document.querySelector(`#lld-modal .lld-tab[data-tab="${name}"]`);
+  if (btn && !btn.disabled) btn.click();
+}
+
 function openLldModal() {
   const ws = active();
   if (!ws) return;
@@ -2891,12 +2932,19 @@ function openLldModal() {
   $('#lld-client').value = L.client;
   $('#lld-author').value = L.author;
   $('#lld-version').value = L.version;
+  $('#lld-objectif').value = L.objectif;
+  $('#lld-existant').value = L.existant;
+  $('#lld-architecture').value = L.architecture;
   const revs = $('#lld-revs');
   revs.innerHTML = '';
   L.revs.forEach(r => lldAddRow(revs, LLD_REV_COLS, r));
+  const nomen = $('#lld-nomen');
+  nomen.innerHTML = '';
+  L.nomen.forEach(r => lldAddRow(nomen, LLD_NOMEN_COLS, r));
   const vlans = $('#lld-vlans');
   vlans.innerHTML = '';
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
+  lldShowTab('doc');
   $('#lld-modal').classList.remove('hidden');
   $('#lld-client').focus();
 }
@@ -2913,6 +2961,35 @@ $('#lld-add-rev').addEventListener('click', () => {
   [...revs.querySelectorAll('.lld-row')].pop().querySelector('input').focus();
 });
 $('#lld-add-vlan').addEventListener('click', () => lldAddRow($('#lld-vlans'), LLD_VLAN_COLS, {}));
+$('#lld-add-nomen').addEventListener('click', () => {
+  lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {});
+  [...$('#lld-nomen').querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+});
+
+// Détecte les préfixes utilisés par les devices et câbles du workspace
+// (ex : « SW-CORE-01 » → préfixe SW) et les ajoute à la nomenclature.
+$('#lld-gen-nomen').addEventListener('click', () => {
+  const ws = active();
+  if (!ws) return;
+  const L = normLldInfo(ws);
+  const known = new Set(L.nomen.map(r => r.prefix.trim().toUpperCase()).filter(Boolean));
+  const names = [];
+  ws.racks.forEach(r => r.instances.forEach(i => names.push(String(i.name || ''))));
+  (ws.cables || []).forEach(c => names.push(String(c.name || '')));
+  const found = {};   // préfixe -> exemple le plus court
+  names.forEach(n => {
+    const m = n.match(/^([A-Za-z]{2,5})-/);
+    if (!m) return;
+    const pfx = m[1].toUpperCase();
+    if (!found[pfx] || n.length < found[pfx].length) found[pfx] = n;
+  });
+  const missing = Object.keys(found).filter(p => !known.has(p)).sort();
+  if (!missing.length) { alert('Aucun nouveau préfixe détecté (ou tous sont déjà dans la nomenclature).'); return; }
+  missing.forEach(p => lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {
+    type: NOMEN_GUESS[p] || '', prefix: p, example: found[p]
+  }));
+  alert(`${missing.length} préfixe(s) ajouté(s) à la nomenclature : ${missing.join(', ')}.\nVérifiez le type d'objet et complétez la règle de nommage.`);
+});
 
 // Ajoute au registre les VLANs utilisés sur les ports mais pas encore enregistrés
 $('#lld-detect-vlans').addEventListener('click', () => {
@@ -4093,12 +4170,61 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
   const newPage = () => { cur = []; pagesOps.push(cur); y = PH - M; };
 
-  function heading(n, title) {
-    if (y < M + 80) newPage();
-    else y -= 14;
-    txt(M, y - 12, `${n}. ${title}`, 14, true, [0.12, 0.31, 0.47]);
-    hline(M, PW - M, y - 20);
-    y -= 32;
+  // ---- Structure du dossier : 15 chapitres (sommaire généré à la fin) ----
+  const tocEntries = [];   // {label, title, level, pageIdx} — pageIdx AVANT insertion du sommaire
+  const GRAY = [0.45, 0.5, 0.58];
+  function chapter(label, title, opts = {}) {
+    if (opts.flow) {          // chapitre compact : peut rester sur la page en cours
+      if (y < M + 110) newPage(); else y -= 12;
+    } else {
+      newPage();
+    }
+    tocEntries.push({ label: String(label), title, level: 0, pageIdx: pagesOps.length - 1 });
+    txt(M, y - 13, `${label}. ${title}`, 15, true, [0.12, 0.31, 0.47]);
+    hline(M, PW - M, y - 21);
+    y -= 33;
+  }
+  function sub(label, title) {
+    if (y < M + 70) newPage();
+    tocEntries.push({ label: String(label), title, level: 1, pageIdx: pagesOps.length - 1 });
+    txt(M + 14, y - 10, `${label}. ${title}`, 12, true, [0.2, 0.35, 0.5]);
+    y -= 26;
+  }
+  function miniTitle(s) {     // titre de bloc interne (n'apparaît pas au sommaire)
+    if (y < M + 60) newPage(); else y -= 4;
+    txt(M, y - 10, s, 11.5, true, [0.3, 0.4, 0.52]);
+    y -= 22;
+  }
+  function note(s) {          // petite note grise sur une ligne
+    if (y < M + 40) newPage();
+    txt(M, y - 8, s, 9.5, false, GRAY);
+    y -= 22;
+  }
+  function placeholder() { note('Section à compléter.'); }
+  function paragraph(s, size = 10) {   // paragraphe multi-lignes (retours à la ligne conservés)
+    const lh = 15;
+    const maxChars = Math.max(24, Math.floor((PW - 2 * M) / (size * 0.52)));
+    const lines = [];
+    String(s || '').split('\n').forEach(raw => {
+      if (!raw.trim()) { lines.push(''); return; }
+      let line = '';
+      for (const word of raw.trim().split(/\s+/)) {
+        const test = line ? line + ' ' + word : word;
+        if (test.length > maxChars) {
+          if (line) lines.push(line);
+          let w = word;
+          while (w.length > maxChars) { lines.push(w.slice(0, maxChars)); w = w.slice(maxChars); }
+          line = w;
+        } else line = test;
+      }
+      if (line) lines.push(line);
+    });
+    for (const l of lines) {
+      if (y - lh < M + 26) newPage();
+      if (l) txt(M, y - 8, l, size, false, [0.2, 0.24, 0.3]);
+      y -= lh;
+    }
+    y -= 5;
   }
 
   function drawTable(rows, widths, size = 7.5) {
@@ -4179,59 +4305,139 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   y = Math.min(y, M + 24);
   txt(M, y, 'G\u00e9n\u00e9r\u00e9 par LLDraw', 9, false, [0.6, 0.65, 0.72]);
 
-  // ---- 1. Synthèse des racks ----
-  newPage();
-  heading(1, 'Synth\u00e8se des racks (capacit\u00e9s)');
-  drawTable(racksRows(ws), [3, 1.4, 1.5, 1.4, 2, 2, 2, 2, 1.4]);
+  // ================= Chapitres (structure cible : 15 chapitres) =================
 
-  // ---- 2. Inventaire ----
-  heading(2, 'Inventaire des devices');
-  drawTable(invRows(ws), [1.7, 1.5, 0.9, 2.2, 1.6, 2.2, 1.8, 1.6, 1.4, 1.4, 1.2, 1, 0.9]);
+  // ---- 1. Objectif du document ----
+  chapter('1', 'Objectif du document');
+  if (L.objectif.trim()) paragraph(L.objectif);
+  else placeholder();
 
-  // ---- 3. Adressage & ports ----
-  heading(3, 'Plan d\u2019adressage & ports');
+  // ---- 2. Aperçu du site ----
+  chapter('2', 'Aperçu du site');
+  sub('2.1', 'Information sur le site');
+  placeholder();
+  sub('2.2', 'L\u2019infrastructure existante');
+  if (L.existant.trim()) paragraph(L.existant);
+  else placeholder();
+
+  // ---- 3. Architecture cible ----
+  chapter('3', 'Architecture cible');
+  if (L.architecture.trim()) paragraph(L.architecture);
+  else placeholder();
+  sub('3.1', 'Équipements');
+  const ir = invRows(ws);
+  if (ir.length > 1) drawTable(ir, [1.7, 1.5, 0.9, 2.2, 1.6, 2.2, 1.8, 1.6, 1.4, 1.4, 1.2, 1, 0.9]);
+  else note('Aucun équipement placé dans les racks de ce workspace.');
+
+  // ---- 4. Conception Nomenclature et Adressage IP Global ----
+  chapter('4', 'Conception Nomenclature et Adressage IP Global');
+  miniTitle('Nomenclature');
+  if (L.nomen.length) {
+    const nr = [['Type d\u2019objet', 'Préfixe', 'Exemple', 'Règle de nommage']];
+    L.nomen.forEach(r => nr.push([r.type, r.prefix, r.example, r.rule]));
+    drawTable(nr, [2.4, 1.1, 2.6, 3.9], 8);
+  } else note('Nomenclature non renseignée (fiche du dossier, onglet Réseau).');
+  miniTitle('Registre VLANs & subnets');
+  if (L.vlans.length) {
+    const vr = [['VLAN', 'Nom', 'Site', 'Subnet', 'Passerelle', 'Usage']];
+    L.vlans.forEach(v => vr.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
+    drawTable(vr, [0.8, 2.1, 1.4, 2.6, 2.2, 2.9], 8);
+  } else note('Aucun VLAN enregistré (fiche du dossier, onglet Réseau).');
+  miniTitle('Plan d\u2019adressage & ports');
   const pr = portsRows(ws);
   if (pr.length > 1) drawTable(pr, [1.6, 1.3, 2, 1.6, 1.8, 1.8, 1.1, 1.4]);
-  else { txt(M, y - 8, 'Aucun port \u00e9tiquet\u00e9.', 9.5, false, [0.45, 0.5, 0.58]); y -= 24; }
+  else note('Aucun port étiqueté.');
 
-  // ---- 4. Câblage ----
-  heading(4, 'Tableau de c\u00e2blage');
-  const cr = cablingRows(ws);
-  if (cr.length > 1) drawTable(cr, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
-  else { txt(M, y - 8, 'Aucun c\u00e2ble.', 9.5, false, [0.45, 0.5, 0.58]); y -= 24; }
+  // ---- 5. Conception et Configuration FAI ----
+  chapter('5', 'Conception et Configuration FAI', { flow: true });
+  sub('5.1', 'Informations & Configuration');
+  placeholder();
+  sub('5.2', 'Câblage');
+  placeholder();
 
-  // ---- 5. Registre VLANs & subnets ----
-  heading(5, 'Registre VLANs & subnets');
-  if (L.vlans.length) {
-    const vr = [['VLAN', 'Nom', 'Subnet', 'Passerelle', 'Usage']];
-    L.vlans.forEach(v => vr.push([v.vid, v.name, v.subnet, v.gw, v.purpose]));
-    drawTable(vr, [0.9, 2.4, 2.8, 2.4, 3.5], 8);
-  } else {
-    txt(M, y - 8, 'Aucun VLAN enregistr\u00e9 (bouton \u00ab Infos du dossier \u00bb du workspace).', 9.5, false, [0.45, 0.5, 0.58]);
-    y -= 24;
-  }
+  // ---- 6. Conception et Configuration Interconnexion site 2 site ----
+  chapter('6', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
+  sub('6.1', 'Informations & Configuration');
+  placeholder();
+  sub('6.2', 'Câblage');
+  placeholder();
 
-  // ---- 6. Topologie logique ----
+  // ---- 7 à 13 : chapitres par domaine (alimentés par les lots à venir) ----
+  chapter('7', 'Conception et Configuration Firewall', { flow: true });
+  placeholder();
+
+  chapter('8', 'Conception et Configuration Switching', { flow: true });
+  sub('8.1', 'Switching (INFRA)');
+  placeholder();
+  sub('8.2', 'Switching (LAN Site B)');
+  placeholder();
+  sub('8.3', 'Switching (Aruba AP Site A)');
+  placeholder();
+  sub('8.4', 'Switching (Aruba AP Site B)');
+  placeholder();
+  sub('8.5', 'Switching (LAN Site A)');
+  placeholder();
+
+  chapter('9', 'Conception et Configuration Serveurs', { flow: true });
+  placeholder();
+  chapter('10', 'Conception et Configuration Stockage', { flow: true });
+  placeholder();
+  chapter('11', 'Conception et Configuration Intrusion (IDS)', { flow: true });
+  placeholder();
+  chapter('12', 'Conception et Configuration CCTV', { flow: true });
+  placeholder();
+  chapter('13', 'Conception et Configuration Pointage (SPO)', { flow: true });
+  placeholder();
+
+  // ---- 14. Flux réseau et diagram ----
+  chapter('14', 'Flux réseau et diagram');
   if (topoJpeg && topoW && topoH) {
-    newPage();
-    heading(6, 'Topologie logique');
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / topoW, availH / topoH);
     const iw = topoW * k, ih = topoH * k;
     const ix = M + (availW - iw) / 2, iy = y - ih;
     cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im1 Do Q`);
+  } else {
+    note('Diagramme de topologie non généré (vue Topologie du workspace).');
   }
 
-  // ---- 7. Élévations ----
+  // ---- 15. Câblage / Rack ----
+  chapter('15', 'C\u00e2blage / Rack');
+  miniTitle('Synthèse des racks (capacités)');
+  drawTable(racksRows(ws), [3, 1.4, 1.5, 1.4, 2, 2, 2, 2, 1.4]);
+  miniTitle('Tableau de c\u00e2blage');
+  const cr = cablingRows(ws);
+  if (cr.length > 1) drawTable(cr, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+  else note('Aucun câble.');
   if (planJpeg && planW && planH) {
     newPage();
-    heading(7, '\u00c9l\u00e9vations des racks');
+    miniTitle('\u00c9l\u00e9vations des racks');
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / planW, availH / planH);
     const iw = planW * k, ih = planH * k;
     const ix = M + (availW - iw) / 2, iy = y - ih;
     cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`);
   }
+
+  // ================= Sommaire (inséré en page 2, après la garde) =================
+  // Une page construite à l'index i avant insertion se retrouve en page i + 2
+  // (page de garde = 1, sommaire = 2, première page de contenu = 3).
+  const tocOps = [];
+  let ty = PH - M - 30;
+  tocOps.push(textOp(M, ty, 'Sommaire', 22, true, [0.12, 0.31, 0.47]));
+  ty -= 12;
+  tocOps.push(lineOp(M, PW - M, ty, [0.82, 0.85, 0.89], 1));
+  ty -= 28;
+  for (const e of tocEntries) {
+    const pageNum = e.pageIdx + 2;
+    const x = e.level ? M + 16 : M;
+    const size = e.level ? 9.5 : 10.5;
+    tocOps.push(textOp(x, ty, `${e.label}. ${e.title}`, size, !e.level,
+      e.level ? [0.35, 0.4, 0.48] : [0.13, 0.16, 0.22]));
+    tocOps.push(textOp(PW - M - 20, ty, String(pageNum), size, !e.level, [0.35, 0.4, 0.48]));
+    ty -= e.level ? 14.5 : 18.5;
+  }
+  pagesOps.splice(1, 0, tocOps);
 
   // ---- Pieds de page (toutes les pages sauf la garde) ----
   const nPages = pagesOps.length;
@@ -4281,9 +4487,13 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   addObj(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`);
 
   pagesOps.forEach((ops, i) => {
+    // Une seule entrée /XObject pour les deux images (topologie + élévations) :
+    // définir la clé deux fois rend l'image d'élévations invisible selon les lecteurs.
+    const xobjs = [];
+    if (hasPlan) xobjs.push(`/Im0 ${img0Num} 0 R`);
+    if (hasTopo) xobjs.push(`/Im1 ${img1Num} 0 R`);
     let res = `<< /Font << /F1 3 0 R /F2 4 0 R >>`;
-    if (hasPlan) res += ` /XObject << /Im0 ${img0Num} 0 R >>`;
-    if (hasTopo) res += ` /XObject << /Im1 ${img1Num} 0 R >>`;
+    if (xobjs.length) res += ` /XObject << ${xobjs.join(' ')} >>`;
     res += ` >>`;
     addObj(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources ${res} /Contents ${contentObjs[i]} 0 R >>`);
   });

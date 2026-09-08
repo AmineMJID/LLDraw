@@ -1636,11 +1636,70 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 
 /* ---------- Modale Infos dossier LLD ---------- */
-.modal-box-lg { max-width: 640px; }
+.modal-box-lg {
+  max-width: 640px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
 .btn-sm {
   padding: 6px 12px;
   font-size: 12px;
   margin-top: 6px;
+}
+/* Onglets de la modale LLD (Document / Réseau / Sites / Chapitres) */
+.lld-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-2);
+  margin: 0 0 14px;
+}
+.lld-tab {
+  flex: 1;
+  padding: 9px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 0 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lld-tab:hover:not(:disabled):not(.active) {
+  color: var(--text);
+  background: rgba(37, 99, 235, .07);
+}
+.lld-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.lld-tab:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.lld-pane { display: flex; flex-direction: column; gap: 4px; }
+.lld-pane .d-inv-title { margin-top: 6px; }
+.modal-box textarea {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  background: #fff;
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 58px;
+  line-height: 1.45;
+}
+.modal-box textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .13);
 }
 .lld-table { display: flex; flex-direction: column; gap: 5px; }
 .lld-row { display: flex; gap: 6px; align-items: center; }

@@ -76,11 +76,16 @@ via localStorage, en secours).
    menu permettant d'enregistrer le plan du workspace courant :
    - **Image PNG** / **Plan PDF (1 page)** — rendu haute définition des racks,
      devices et ports ;
-   - **Document LLD (PDF)** — le dossier complet, multi-pages : page de garde
-     (client, auteur, version, historique des révisions, statistiques), synthèse
-     des racks (capacités et budgets), inventaire, plan d'adressage & ports,
-     tableau de câblage, registre VLANs & subnets, topologie logique et
-     élévations des racks en images. Pieds de page numérotés (date, page X/Y).
+   - **Document LLD (PDF)** — le dossier complet, multi-pages, structuré en
+     **15 chapitres** avec **sommaire** (numéros de page) : 1. Objectif,
+     2. Aperçu du site, 3. Architecture cible (+ 3.1 Équipements/inventaire),
+     4. Nomenclature & adressage IP global, 5. FAI, 6. Interconnexion
+     site 2 site, 7. Firewall, 8. Switching (5 sous-sections), 9. Serveurs,
+     10. Stockage, 11. IDS, 12. CCTV, 13. Pointage, 14. Flux réseau &
+     diagramme (topologie), 15. Câblage/Rack (synthèse, tableau de câblage,
+     élévations). Page de garde (client, auteur, version, révisions,
+     statistiques). Les chapitres non encore renseignés affichent
+     « Section à compléter ». Pieds de page numérotés (date, page X/Y).
      Généré sans dépendance (PDF natif).
    - **Classeur Excel (.xlsx)** — un vrai fichier Excel (écrit sans dépendance)
      avec 4 feuilles : *Inventaire*, *Câblage*, *Ports* et *Racks* (en-têtes
