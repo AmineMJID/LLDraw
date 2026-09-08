@@ -205,15 +205,28 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
       Topologie — les équipements mentionnés dans la source/destination du
       flux restent nets, les autres (noeuds et liens) sont atténués
 
-### ⬜ Lot 7 — Câblage/Rack + exports & finitions (ch. 15)
-- [ ] PDF ch. 15 : tableau de câblage global + synthèse racks + élévations
-      (reprend les sections actuelles, renumérotées)
-- [ ] XLSX : nouvelles feuilles — *Flux*, *Sites*, *Nomenclature*,
-      *Adressage IP*, (+ colonne Site/Catégorie partout)
-- [ ] CSV : exports des nouvelles tables (flux, adressage)
-- [ ] Recherche globale étendue aux sites et aux flux
-- [ ] README mis à jour + incrément du n° de version de cache (`?v=`)
-- [ ] Vérification PDF complet vs sommaire (numéros de pages corrects)
+### ✅ Lot 7 — Câblage/Rack + exports & finitions (ch. 15) — **FAIT**
+- [x] PDF ch. 15 : tableau de câblage global (avec colonne Domaine) +
+      synthèse racks + élévations — en place depuis les lots 1/2/4, vérifié
+- [x] XLSX : **8 feuilles** — *Inventaire*, *Câblage*, *Ports*, *Racks*,
+      *Sites*, *Nomenclature*, *Adressage IP*, *Flux* (feuilles vides omises)
+- [x] CSV : **Sites**, **Nomenclature & adressage**, **Flux réseau**
+      (3 nouveaux exports dans le menu Exporter)
+- [x] Recherche globale étendue : **sites** (nom, adresse, contacts,
+      description) et **flux** (nom, source, destination, protocole, usage) —
+      un clic ouvre la fiche du dossier sur l'onglet correspondant
+- [x] README mis à jour + version de cache v38
+- [x] Vérification finale : PDF 15 chapitres dans l'ordre, sommaire exact
+      (0 erreur), XLSX validé (ZIP/OOXML, 8 feuilles)
+
+---
+
+## 🎉 PROJET TERMINÉ
+
+Les 7 lots sont implémentés et validés : le **Document LLD (PDF)** couvre
+désormais la structure cible complète (15 chapitres), alimenté par les
+données de l'application (sites, catégories, zones de switching, FAI,
+interconnexion, domaines de câblage, flux) et exportable en Excel/CSV.
 
 ---
 

@@ -4510,6 +4510,32 @@ function flowMatchesInst(flow, inst) {
   return !!name && hay.includes(name);
 }
 
+// Sites (feuille Excel / CSV)
+function sitesRows(ws) {
+  const rows = [['Site', 'Adresse', 'Contacts', 'Description', 'Racks']];
+  for (const s of (ws?.sites || [])) {
+    const nb = (ws?.racks || []).filter(r => r.siteId === s.id).length;
+    rows.push([s.name, s.address || '', s.contact || '', s.desc || '', nb]);
+  }
+  return rows;
+}
+
+// Nomenclature (feuille Excel / CSV)
+function nomenRows(ws) {
+  const L = normLldInfo(ws || {});
+  const rows = [["Type d'objet", 'Préfixe', 'Exemple', 'Règle de nommage']];
+  L.nomen.forEach(r => rows.push([r.type, r.prefix, r.example, r.rule]));
+  return rows;
+}
+
+// Adressage IP global : registre VLANs & subnets (feuille Excel / CSV)
+function addressingRows(ws) {
+  const L = normLldInfo(ws || {});
+  const rows = [['VLAN', 'Nom', 'Site', 'Subnet', 'Passerelle', 'Usage']];
+  L.vlans.forEach(v => rows.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
+  return rows;
+}
+
 // Corps commun du tableau de câblage. domain = null : tous les câbles ;
 // withDomain : ajoute la colonne « Domaine » (chapitre du dossier LLD).
 function cablingRowsBase(ws, domain = null, withDomain = false) {
@@ -4587,6 +4613,27 @@ $('#export-csv-ports').addEventListener('click', () => {
   const rows = portsRows(active());
   if (rows.length < 2) { alert('Aucun port étiqueté dans ce workspace : l\'export serait vide.'); return; }
   downloadCsv(rows, 'ports');
+});
+
+$('#export-csv-sites').addEventListener('click', () => {
+  $('#export-menu').classList.add('hidden');
+  const rows = sitesRows(active());
+  if (rows.length < 2) { alert('Aucun site déclaré dans ce workspace : l\'export serait vide.'); return; }
+  downloadCsv(rows, 'sites');
+});
+
+$('#export-csv-nomen').addEventListener('click', () => {
+  $('#export-menu').classList.add('hidden');
+  const rows = [...nomenRows(active()), ...addressingRows(active()).slice(1)];
+  if (rows.length < 3) { alert('Nomenclature et registre VLANs non renseignés (fiche du dossier, onglet Réseau) : l\'export serait vide.'); return; }
+  downloadCsv(rows, 'nomenclature-adressage');
+});
+
+$('#export-csv-flux').addEventListener('click', () => {
+  $('#export-menu').classList.add('hidden');
+  const rows = flowsRows(active());
+  if (rows.length < 2) { alert('Aucun flux défini dans ce workspace (fiche du dossier, onglet Flux) : l\'export serait vide.'); return; }
+  downloadCsv(rows, 'flux');
 });
 
 /* ---------- Générateur Excel .xlsx (OOXML minimal, sans dépendance) ----------
@@ -4756,11 +4803,15 @@ $('#export-xlsx').addEventListener('click', () => {
   const ws = active();
   if (!ws || !ws.racks.length) { alert('Ce workspace ne contient aucun rack à exporter.'); return; }
   const sheets = [
-    { name: 'Inventaire', rows: invRows(ws) },
-    { name: 'Câblage',    rows: cablingRows(ws) },
-    { name: 'Ports',      rows: portsRows(ws) },
-    { name: 'Racks',      rows: racksRows(ws) }
-  ];
+    { name: 'Inventaire',    rows: invRows(ws) },
+    { name: 'Câblage',       rows: cablingRows(ws) },
+    { name: 'Ports',         rows: portsRows(ws) },
+    { name: 'Racks',         rows: racksRows(ws) },
+    { name: 'Sites',         rows: sitesRows(ws) },
+    { name: 'Nomenclature',  rows: nomenRows(ws) },
+    { name: 'Adressage IP',  rows: addressingRows(ws) },
+    { name: 'Flux',          rows: flowsRows(ws) }
+  ].filter(s => s.rows.length > 1);   // feuilles vides omises
   downloadBlob(XLSX.build(sheets), exportFileBase() + '.xlsx');
 });
 
@@ -5353,6 +5404,30 @@ function doSearch(query) {
         });
       }
     }
+    // Sites (nom, adresse, contacts, description)
+    (ws.sites || []).forEach(site => {
+      const hay = [site.name, site.address, site.contact, site.desc]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'site', ws, site,
+          label: site.name,
+          path: `Site · ${ws.name}`
+        });
+      }
+    });
+    // Flux réseau (nom, source, destination, protocole, usage)
+    (ws.flows || []).forEach(flow => {
+      const hay = [flow.name, flow.src, flow.dst, flow.proto, flow.usage]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'flow', ws, flow,
+          label: flow.name || flow.src || 'Flux',
+          path: `${flow.src || '?'} → ${flow.dst || '?'} · ${ws.name}`
+        });
+      }
+    });
   }
   return results.slice(0, 30);
 }
@@ -5367,8 +5442,9 @@ function renderSearchResults(results, query) {
   results.forEach(r => {
     const item = document.createElement('button');
     item.className = 'sr-item';
+    const SR_TYPES = { device: 'Device', port: 'Port', site: 'Site', flow: 'Flux' };
     item.innerHTML = `
-      <span class="sr-type ${r.type === 'port' ? 'port' : ''}">${r.type === 'port' ? 'Port' : 'Device'}</span>
+      <span class="sr-type ${r.type}">${SR_TYPES[r.type] || '?'}</span>
       <span class="sr-body">
         <span class="sr-name"></span>
         <span class="sr-path"></span>
@@ -5399,6 +5475,16 @@ document.addEventListener('pointerdown', e => {
 
 // Centre la vue sur un rack et fait clignoter le résultat
 function focusOnResult(r) {
+  if (r.type === 'site' || r.type === 'flow') {
+    // Site ou flux : ouvrir la fiche du dossier sur l'onglet correspondant
+    if (state.activeWorkspaceId !== r.ws.id) {
+      openWorkspace(r.ws.id);
+    }
+    hideHome();
+    openLldModal();
+    lldShowTab(r.type === 'site' ? 'sites' : 'flux');
+    return;
+  }
   if (state.activeWorkspaceId !== r.ws.id) {
     openWorkspace(r.ws.id);
   }

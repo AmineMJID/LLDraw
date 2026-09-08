@@ -71,9 +71,11 @@ via localStorage, en secours).
    Les racks sont dessinés comme de vrais racks 19" : montants perforés
    (trous de cage nuts), règle des U et faceplates métalliques.
 3. **Recherche globale** : le champ de la barre du haut cherche dans **tous les
-   workspaces** (nom de device, nom de port, étiquette — ex. `CAB-SRV-01`).
-   Un clic sur un résultat ouvre le bon workspace, centre la vue sur le rack et
-   fait **clignoter** le device ou le port trouvé.
+   workspaces** (nom de device, nom de port, étiquette — ex. `CAB-SRV-01` —,
+   **sites** et **flux réseau**). Un clic sur un résultat device/port ouvre le
+   bon workspace, centre la vue sur le rack et fait **clignoter** l'élément
+   trouvé ; un résultat **site** ou **flux** ouvre directement la fiche du
+   dossier (onglet correspondant).
 4. **Annuler / Rétablir** : **Ctrl+Z** (ou Ctrl+Maj+Z) et **Ctrl+Y** permettent
    d'annuler/rétablir toutes les actions (placement, suppression, « Vider »,
    création de device/workspace…).
@@ -93,15 +95,23 @@ via localStorage, en secours).
      « Section à compléter ». Pieds de page numérotés (date, page X/Y).
      Généré sans dépendance (PDF natif).
    - **Classeur Excel (.xlsx)** — un vrai fichier Excel (écrit sans dépendance)
-     avec 4 feuilles : *Inventaire*, *Câblage*, *Ports* et *Racks* (en-têtes
-     stylés, largeurs automatiques, première ligne figée) ;
+     avec jusqu'à 8 feuilles : *Inventaire*, *Câblage*, *Ports*, *Racks*,
+     *Sites*, *Nomenclature*, *Adressage IP* et *Flux* (en-têtes stylés,
+     largeurs automatiques, première ligne figée ; les feuilles vides sont
+     omises) ;
    - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
      étage, taille, nom, catégorie, marque, modèle, référence, n° série,
      IP mgmt, VLAN, puissance, poids, nombre de ports) ;
    - **Câblage (CSV)** — tableau des cordons (ID, couleur, extrémités A/B :
      rack, device, port, étiquette) ;
-   - **Ports & étiquettes (CSV)** — tous les ports avec rack, étage, device,
-     nom du port, étiquette, IP, VLAN et câble connecté.
+   - **Ports & étiquettes (CSV)** — tous les ports avec rack, site, étage,
+     device, nom du port, étiquette, IP, VLAN et câble connecté ;
+   - **Sites (CSV)** — sites du dossier (adresse, contacts, description,
+     nombre de racks) ;
+   - **Nomenclature & adressage (CSV)** — table de nomenclature puis registre
+     VLANs & subnets ;
+   - **Flux réseau (CSV)** — matrice des flux (source, destination,
+     protocole/ports, sens, usage).
    Les CSV sont au format Excel français (séparateur `;`, UTF-8 BOM).
 6. **Créer un device** : cliquez sur **＋ Créer un device**, donnez-lui un nom,
    une taille (1U, 2U…), une **catégorie** (Routeur/FAI, Firewall, Switch,

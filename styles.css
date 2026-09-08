@@ -169,6 +169,8 @@ body {
   flex-shrink: 0;
 }
 .sr-type.port { background: var(--amber); }
+.sr-type.site { background: #059669; }
+.sr-type.flow { background: #7c3aed; }
 .sr-body { flex: 1; min-width: 0; }
 .sr-name {
   font-size: 13px;
