@@ -473,10 +473,13 @@ async function bootState() {
 
 function pushToServer() {
   if (!serverAvailable) return Promise.resolve(false);
+  // Réutilise la sérialisation de saveState si elle est fraîche (une seule
+  // copie du JSON au lieu de deux), sinon sérialise à la demande.
+  const body = pendingStateJson !== null ? pendingStateJson : JSON.stringify(state);
   return fetch(SERVER_API, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state)
+    body
   })
     .then(res => {
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -489,7 +492,8 @@ function pushToServer() {
       serverAvailable = false;
       setSaveStatus('local');
       return false;
-    });
+    })
+    .finally(() => { pendingStateJson = null; });
 }
 
 // Écritures groupées (~600 ms) pour ne pas saturer le serveur
@@ -519,10 +523,16 @@ function touchWorkspace(ws) {
   if (ws) ws.updatedAt = Date.now();
 }
 
+// Dernière sérialisation de l'état : partagée entre localStorage et le push
+// serveur pour ne payer JSON.stringify(state) qu'UNE fois par sauvegarde.
+let pendingStateJson = null;
+
 function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    pendingStateJson = JSON.stringify(state);
+    localStorage.setItem(STORAGE_KEY, pendingStateJson);
   } catch (e) {
+    pendingStateJson = null;
     console.warn('Sauvegarde locale impossible (quota localStorage ?)', e);
   }
   // Synchronisation avec le serveur (fichier JSON) si disponible
@@ -544,7 +554,22 @@ let undoStack = [];
 let redoStack = [];
 
 function cloneState() {
-  return JSON.parse(JSON.stringify(state));
+  // Copie structurelle qui PARTAGE les chaînes (photos en base64 notamment,
+  // immuables en JS) : chaque snapshot d'undo ne duplique plus les ~677 Ko
+  // de photos — quelques Ko de structure au lieu d'un clone JSON complet
+  // (qui coûtait ~3 ms et ~32 Mo de RAM pour 40 niveaux d'historique).
+  const walk = (v) => {
+    if (v === null || typeof v !== 'object') return v;   // strings/nombres : par référence
+    if (Array.isArray(v)) {
+      const a = new Array(v.length);
+      for (let i = 0; i < v.length; i++) a[i] = walk(v[i]);
+      return a;
+    }
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = walk(v[k]);
+    return o;
+  };
+  return walk(state);
 }
 
 // À appeler AVANT toute mutation de state (hors vue/zoom-pan)
@@ -878,6 +903,13 @@ function renderPalette() {
       card.querySelector('.mini-del').addEventListener('click', () => {
         if (confirm(`Supprimer le modèle "${d.name}" de la bibliothèque ?\n(Les exemplaires déjà placés sont conservés.)`)) {
           pushHistory();
+          // Les exemplaires posés qui affichent la photo du modèle la
+          // conservent : on la leur matérialise avant de retirer le modèle.
+          if (d.photo) {
+            state.workspaces.forEach(w => w.racks.forEach(r => r.instances.forEach(i => {
+              if (i.deviceId === d.id && !i.photo) i.photo = d.photo;
+            })));
+          }
           state.devices = state.devices.filter(x => x.id !== d.id);
           saveState();
           renderPalette();
@@ -1247,7 +1279,7 @@ function renderRack(rack) {
           deviceId: tpl.id,
           name: tpl.name,
           sizeU: tpl.sizeU,
-          photo: tpl.photo,
+          photo: '',   // pas de copie : rendu via la photo du modèle (instPhoto)
           cat: normCat(tpl.cat),
           slot,
           brand: tpl.brand || '',
@@ -1371,6 +1403,16 @@ function renderRack(rack) {
 }
 
 /* ---------- Device (exemplaire monté dans une baie) ---------- */
+
+// Photo d'un exemplaire : la sienne, sinon celle du modèle de la bibliothèque.
+// Les exemplaires ne dupliquuent plus la photo (des Ko par device dans l'état) :
+// la bibliothèque reste la source visuelle, l'instance peut surcharger.
+function instPhoto(inst) {
+  if (inst.photo) return inst.photo;
+  const tpl = inst.deviceId && state.devices.find(d => d.id === inst.deviceId);
+  return tpl?.photo || null;
+}
+
 function renderDevice(rack, inst) {
   const dev = document.createElement('div');
   dev.className = 'device';
@@ -1381,9 +1423,10 @@ function renderDevice(rack, inst) {
   // pas déplaçables : cela évite que le glisser natif n'avale les clics de ports.
   dev.draggable = !labelMode && !cablingMode;
 
-  if (inst.photo) {
+  const photo = instPhoto(inst);
+  if (photo) {
     const img = document.createElement('img');
-    img.src = inst.photo;
+    img.src = photo;
     img.alt = inst.name;
     img.draggable = false;
     dev.appendChild(img);
@@ -2296,8 +2339,8 @@ function fillDevicePopover() {
   if (!rack || !inst) { hideDevicePopover(); return; }
   $('#dp-title').textContent = inst.name;
   $('#dp-sub').textContent = `${rack.name} · U${inst.slot + 1}${inst.sizeU > 1 ? '–U' + (inst.slot + inst.sizeU) : ''}`;
-  $('#dp-thumb').innerHTML = inst.photo
-    ? `<img src="${inst.photo}" alt="">`
+  $('#dp-thumb').innerHTML = instPhoto(inst)
+    ? `<img src="${instPhoto(inst)}" alt="">`
     : '<span>▤</span>';
   dpSet('#dp-name', inst.name);
   dpSet('#dp-size', inst.sizeU + 'U');
@@ -3970,7 +4013,7 @@ async function renderPlanCanvas() {
   // Préchargement de toutes les photos de devices
   const imgCache = new Map();
   const imgUrls = new Set();
-  ws.racks.forEach(r => r.instances.forEach(i => { if (i.photo) imgUrls.add(i.photo); }));
+  ws.racks.forEach(r => r.instances.forEach(i => { const ph = instPhoto(i); if (ph) imgUrls.add(ph); }));
   await Promise.all([...imgUrls].map(url => new Promise(res => {
     const im = new Image();
     im.onload = () => { imgCache.set(url, im); res(); };
@@ -4110,7 +4153,8 @@ async function renderPlanCanvas() {
       const dh = inst.sizeU * U_H;
       ctx.save();
       ctx.beginPath(); ctx.rect(inX, dy, inW, dh); ctx.clip();
-      const img = inst.photo ? imgCache.get(inst.photo) : null;
+      const ph = instPhoto(inst);
+      const img = ph ? imgCache.get(ph) : null;
       if (img) {
         ctx.drawImage(img, inX, dy, inW, dh);
       } else {

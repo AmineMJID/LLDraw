@@ -218,6 +218,22 @@ devices et ports persistent donc entre les sessions — et même d'un navigateur
 l'autre avec le serveur. Un rack se supprime individuellement via son ✕ ; un
 workspace entier se supprime depuis l'écran d'accueil.
 
+### Performances
+
+L'état (photos des faces avant comprises) peut atteindre plusieurs centaines de
+Ko. Trois mécanismes en limitent le coût en RAM et en CPU :
+
+- **Historique d'annulation léger** — les 40 snapshots d'undo clonent la
+  structure de l'état en **partageant les chaînes** (photos base64, immuables
+  en JS) : ~0,2 ms et quelques Ko par snapshot, au lieu de ~3 ms et ~32 Mo
+  cumulés avec un clonage JSON complet ;
+- **Sérialisation unique** — chaque sauvegarde ne paie `JSON.stringify(state)`
+  qu'une seule fois, partagée entre localStorage et le push serveur ;
+- **Photos non dupliquées** — un exemplaire posé dans une baie n'embarque plus
+  la copie de la photo de son modèle : le rendu retombe sur la bibliothèque
+  (surcharge possible par exemplaire), et la photo est matérialisée dans les
+  exemplaires concernés si le modèle est supprimé.
+
 ## 🎬 Démonstration
 
 Le dossier **`demo/`** contient un datacenter de démonstration complet

@@ -337,10 +337,12 @@ def make_ports(inst_id, tpl, ips=None):
 def make_instance(inst_id, dev_id, name, slot, cat, sizeU, img, tpl, zone='',
                   brand='', model='', partRef='', serial='', ipMgmt='', vlan='',
                   watts=0, weightKg=0, ips=None, photo_scale=1):
+    # photo : vide — l'application rend la photo du modèle de la bibliothèque
+    # (helper instPhoto d'app.js), ce qui allège state.json d'environ 40 %.
     return {
         'id': inst_id, 'deviceId': dev_id, 'name': name,
         'slot': slot, 'sizeU': sizeU, 'cat': cat, 'zone': zone,
-        'photo': dataurl(img), 'ports': make_ports(inst_id, tpl, ips),
+        'photo': '', 'ports': make_ports(inst_id, tpl, ips),
         'brand': brand, 'model': model, 'partRef': partRef, 'serial': serial,
         'ipMgmt': ipMgmt, 'vlan': vlan, 'watts': watts, 'weightKg': weightKg,
     }
@@ -860,7 +862,11 @@ def build():
     print('  câbles : %d · sites : %d · flux : %d' % (len(cables), len(sites), len(flows)))
     print('  topologie : %d nœuds / %d liens' % (len(topology['nodes']), len(topology['links'])))
     print('  devices bibliothèque ajoutés : %d' % len(new_devices))
-    return ws
+
+    # photo de chaque modèle (pour le rendu du plan)
+    lib = {d['id']: d.get('photo') for d in new_devices}
+    lib['watchguard-permanent'] = dataurl(WG_BASE)
+    return ws, lib
 
 
 # ------------------------------------------------- rendu plan + topo (JPEG) --
@@ -868,7 +874,7 @@ def build():
 RACK_W, U_H = 356, 33
 
 
-def render_plan(ws, out_path):
+def render_plan(ws, lib_photos, out_path):
     racks = ws['racks']
     PAD = 60
     minX = min(r['x'] for r in racks) - PAD
@@ -940,9 +946,9 @@ def render_plan(ws, out_path):
         inX = fx + S(22) + S(17)
         inW = S(292)
         d.rectangle([inX, fy, inX + inW, fy + S(sizeU * U_H)], fill=hx('#0b0d11'))
-        # devices (photo face avant)
+        # devices (photo : la sienne, sinon celle du modèle — comme instPhoto)
         for inst in rack['instances']:
-            photo = inst.get('photo')
+            photo = inst.get('photo') or lib_photos.get(inst.get('deviceId'))
             dy = fy + S(inst['slot'] * U_H)
             dh = S(inst['sizeU'] * U_H)
             if photo:
@@ -1038,10 +1044,10 @@ if __name__ == '__main__':
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
-    ws = build()
+    ws, lib_photos = build()
     demo_dir = os.path.join(ROOT, 'demo')
     os.makedirs(demo_dir, exist_ok=True)
-    pw, ph = render_plan(ws, os.path.join(demo_dir, 'plan-baies.jpg'))
+    pw, ph = render_plan(ws, lib_photos, os.path.join(demo_dir, 'plan-baies.jpg'))
     tw, th = render_topo(ws, os.path.join(demo_dir, 'topologie.jpg'))
     print('Plan  : %dx%d -> demo/plan-baies.jpg' % (pw, ph))
     print('Topo  : %dx%d -> demo/topologie.jpg' % (tw, th))
