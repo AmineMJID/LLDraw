@@ -72,6 +72,9 @@ const BOARD_H = 6000;
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 
+// Page de garde des workspaces : longueur max des paragraphes
+const COVER_INTRO_MAX = 1500;
+
 // Infos du dossier LLD portées par le workspace (page de garde, révisions, VLANs)
 function normLldInfo(w) {
   if (!w.lld || typeof w.lld !== 'object') w.lld = {};
@@ -161,8 +164,24 @@ let suppressPortClick = false;   // true juste après un glisser-déposer de por
 // Vue du board (décalage + échelle) — mémorisée par workspace
 const view = { x: 80, y: 50, scale: 1 };
 
+// Page de garde d'un workspace : textes par défaut (modifiables via Suppr)
+function defaultIntro() {
+  return {
+    objective:
+      "Ce dossier constitue le LLD (Low Level Design) du site : il décrit l'implantation " +
+      "physique des équipements en baie, l'inventaire du matériel, le plan de câblage et " +
+      "le plan d'adressage retenus.\n" +
+      "Il sert de référence pour l'installation, l'exploitation, la maintenance et les " +
+      "évolutions futures de l'infrastructure.",
+    siteInfo:
+      "Présentation du site : localisation, contraintes d'accès, caractéristiques " +
+      "électriques (alimentation secourue, puissance disponible), refroidissement et " +
+      "dimensionnement (nombre de baies, interconnexions opérateur)."
+  };
+}
+
 function makeWorkspace(name, racks = []) {
-  return { id: uid(), name, racks, cables: [], view: null, viewTouched: false, updatedAt: Date.now() };
+  return { id: uid(), name, racks, cables: [], view: null, viewTouched: false, updatedAt: Date.now(), intro: defaultIntro() };
 }
 
 function emptyState() {
@@ -208,6 +227,14 @@ function normalizeState(s) {
       w.topology = { nodes: [], links: [] };
     pruneTopology(w);
     normLldInfo(w);
+    // Page de garde du workspace (objectif du document + infos site).
+    // Les champs absents reçoivent le texte par défaut ; un texte volontairement
+    // vidé par l'utilisateur (chaîne vide) est conservé tel quel.
+    if (!w.intro || typeof w.intro !== 'object') w.intro = {};
+    if (typeof w.intro.objective !== 'string') w.intro.objective = defaultIntro().objective;
+    if (typeof w.intro.siteInfo !== 'string') w.intro.siteInfo = defaultIntro().siteInfo;
+    w.intro.objective = w.intro.objective.slice(0, COVER_INTRO_MAX);
+    w.intro.siteInfo = w.intro.siteInfo.slice(0, COVER_INTRO_MAX);
     // Les anciennes vues par défaut ne sont pas considérées comme personnalisées :
     // l'application recadrera automatiquement sur le contenu à la première ouverture.
     w.viewTouched = !!w.viewTouched;
@@ -431,6 +458,9 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.target?.closest?.(`input, textarea, select, [contenteditable]`)) return;
+  // Pas d'undo/redo pendant la page de garde (l'état est déjà prêt derrière)
+  const coverEl = document.getElementById('cover-screen');
+  if (coverEl && !coverEl.classList.contains('hidden')) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault();
     if (e.shiftKey) redo(); else undo();
@@ -2355,7 +2385,7 @@ function renderHomeList() {
   });
 }
 
-function openWorkspace(id) {
+function openWorkspace(id, opts = {}) {
   const ws = state.workspaces.find(w => w.id === id);
   if (!ws) return;
   state.activeWorkspaceId = ws.id;
@@ -2381,6 +2411,10 @@ function openWorkspace(id) {
       fitViewToContent();
     }
   });
+
+  // Page de garde (objectif du document + infos site) — sauf si l'appelant
+  // demande l'ouverture directe (ex : résultat de la recherche globale).
+  if (opts.cover !== false) showCover(ws);
 }
 
 function createWorkspace() {
@@ -2423,6 +2457,147 @@ function deleteWorkspace(id) {
 $('#home-new').addEventListener('click', createWorkspace);
 // Le logo et le nom de l'application servent de retour vers les workspaces.
 $('#btn-workspaces').addEventListener('click', showHome);
+
+/* ============================================================
+   PAGE DE GARDE — affichée à l'ouverture d'un workspace
+   - Deux paragraphes : objectif du document + informations du site
+   - Animation d'apparition (carte qui monte, texte qui se révèle)
+   - Entrée : passer au board · Suppr : modifier les textes
+   - En édition : Échap annule, Ctrl+Entrée enregistre et continue
+   ============================================================ */
+
+const coverScreen = $('#cover-screen');
+const COVER_PLACEHOLDER = {
+  objective: "L'objectif du document n'a pas encore été rédigé — appuyez sur Suppr pour l'éditer.",
+  siteInfo: "Les informations du site n'ont pas encore été renseignées — appuyez sur Suppr pour les éditer."
+};
+let coverWsId = null;        // workspace présenté par la page de garde
+let coverEditing = false;    // true pendant l'édition des paragraphes
+
+function coverWorkspace() {
+  return state.workspaces.find(w => w.id === coverWsId) || null;
+}
+
+// Remplit les paragraphes en lecture (placeholder grisé si vide)
+function fillCoverTexts() {
+  const ws = coverWorkspace();
+  if (!ws) return;
+  $('#cover-title').textContent = ws.name;
+  const obj = $('#cover-objective');
+  const site = $('#cover-siteinfo');
+  obj.textContent = ws.intro.objective || COVER_PLACEHOLDER.objective;
+  site.textContent = ws.intro.siteInfo || COVER_PLACEHOLDER.siteInfo;
+  obj.classList.toggle('empty', !ws.intro.objective);
+  site.classList.toggle('empty', !ws.intro.siteInfo);
+}
+
+// Libère le focus des zones d'édition (sinon les raccourcis lecture
+// resteraient ignorés : le clavier croirait qu'on tape dans un champ)
+function blurCoverInputs() {
+  ['#cover-objective-edit', '#cover-siteinfo-edit'].forEach(sel => {
+    const ta = $(sel);
+    if (ta && document.activeElement === ta) ta.blur();
+  });
+}
+
+// Bascule lecture <-> édition (paragraphes ou zones de texte)
+function setCoverEditUI(edit) {
+  coverEditing = edit;
+  coverScreen.classList.toggle('editing', edit);
+  $('#cover-objective').classList.toggle('hidden', edit);
+  $('#cover-siteinfo').classList.toggle('hidden', edit);
+  $('#cover-objective-edit').classList.toggle('hidden', !edit);
+  $('#cover-siteinfo-edit').classList.toggle('hidden', !edit);
+  $('#cover-actions').classList.toggle('hidden', !edit);
+  $('#cover-hints-read').classList.toggle('hidden', edit);
+  $('#cover-hints-edit').classList.toggle('hidden', !edit);
+  if (edit) {
+    const ws = coverWorkspace();
+    $('#cover-objective-edit').value = ws ? ws.intro.objective : '';
+    $('#cover-siteinfo-edit').value = ws ? ws.intro.siteInfo : '';
+    autosizeCoverEdits();
+    setTimeout(() => $('#cover-objective-edit').focus(), 80);
+  } else {
+    blurCoverInputs();
+    fillCoverTexts();
+  }
+}
+
+// Les zones d'édition suivent la hauteur de leur contenu
+function autosizeCoverEdits() {
+  ['#cover-objective-edit', '#cover-siteinfo-edit'].forEach(sel => {
+    const ta = $(sel);
+    if (!ta || ta.classList.contains('hidden')) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(96, ta.scrollHeight + 2) + 'px';
+  });
+}
+
+function showCover(ws) {
+  coverWsId = ws.id;
+  setCoverEditUI(false);
+  // Le retrait de .hidden relance toutes les animations d'apparition
+  coverScreen.classList.remove('hidden');
+}
+
+function hideCover() {
+  blurCoverInputs();
+  coverScreen.classList.add('hidden');
+  coverScreen.classList.remove('editing');
+  coverWsId = null;
+  coverEditing = false;
+}
+
+function coverContinue() {
+  hideCover();
+}
+
+function coverStartEdit() {
+  if (!coverWsId || coverEditing) return;
+  setCoverEditUI(true);
+}
+
+function coverCancelEdit() {
+  setCoverEditUI(false);
+}
+
+function coverSaveEdit() {
+  const ws = coverWorkspace();
+  if (!ws) { hideCover(); return; }
+  const objective = $('#cover-objective-edit').value.trim().slice(0, COVER_INTRO_MAX);
+  const siteInfo = $('#cover-siteinfo-edit').value.trim().slice(0, COVER_INTRO_MAX);
+  if (objective !== ws.intro.objective || siteInfo !== ws.intro.siteInfo) {
+    pushHistory();                    // modification annulable via Ctrl+Z
+    ws.intro.objective = objective;
+    ws.intro.siteInfo = siteInfo;
+    touchWorkspace(ws);
+    saveState();
+  }
+  hideCover();                        // « Enregistrer et continuer »
+}
+
+// Raccourcis clavier de la page de garde
+document.addEventListener('keydown', e => {
+  if (coverScreen.classList.contains('hidden')) return;
+  if (coverEditing) {
+    if (e.key === 'Escape') { e.preventDefault(); coverCancelEdit(); }
+    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); coverSaveEdit(); }
+    return;   // sinon : frappe normale dans les zones de texte
+  }
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'Enter') { e.preventDefault(); coverContinue(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); coverStartEdit(); }
+});
+
+// Équivalents souris des raccourcis (boutons en bas à droite + actions)
+$('#cover-hint-continue').addEventListener('click', () => { if (!coverEditing) coverContinue(); });
+$('#cover-hint-edit').addEventListener('click', coverStartEdit);
+$('#cover-cancel').addEventListener('click', coverCancelEdit);
+$('#cover-save').addEventListener('click', coverSaveEdit);
+$('#cover-objective-edit').addEventListener('input', autosizeCoverEdits);
+$('#cover-siteinfo-edit').addEventListener('input', autosizeCoverEdits);
 
 /* ============================================================
    MODE CÂBLAGE — relier des ports entre eux par des cordons
@@ -4459,7 +4634,7 @@ document.addEventListener('pointerdown', e => {
 // Centre la vue sur un rack et fait clignoter le résultat
 function focusOnResult(r) {
   if (state.activeWorkspaceId !== r.ws.id) {
-    openWorkspace(r.ws.id);
+    openWorkspace(r.ws.id, { cover: false });
   }
   hideHome();
 

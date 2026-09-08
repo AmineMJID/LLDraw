@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=31">
+  <link rel="stylesheet" href="styles.css?v=32">
 </head>
 <body>
   <header class="topbar">
@@ -307,6 +307,53 @@
     </div>
   </div>
 
+  <!-- ============ PAGE DE GARDE — OUVERTURE D'UN WORKSPACE ============ -->
+  <!-- Affichée à l'ouverture d'un workspace : objectif du document et
+       informations du site. Entrée = passer au board, Suppr = modifier. -->
+  <div id="cover-screen" class="cover hidden" role="dialog" aria-modal="true" aria-label="Page de garde du workspace">
+    <div class="cover-backdrop"></div>
+    <div class="cover-frame">
+      <div class="cover-inner">
+        <div class="cover-badge">📄&nbsp;Dossier LLD</div>
+        <h1 class="cover-title" id="cover-title">Workspace</h1>
+        <div class="cover-rule"></div>
+
+        <section class="cover-sec cover-sec-a">
+          <h2 class="cover-sec-title"><span class="cover-sec-ico">🎯</span>Objectif du document</h2>
+          <p class="cover-text" id="cover-objective"></p>
+          <textarea class="cover-edit hidden" id="cover-objective-edit" rows="4" maxlength="1500"
+                    placeholder="Décrivez l'objectif de ce document…"></textarea>
+        </section>
+
+        <section class="cover-sec cover-sec-b">
+          <h2 class="cover-sec-title"><span class="cover-sec-ico">📍</span>Informations sur le site</h2>
+          <p class="cover-text" id="cover-siteinfo"></p>
+          <textarea class="cover-edit hidden" id="cover-siteinfo-edit" rows="4" maxlength="1500"
+                    placeholder="Localisation, contraintes techniques, alimentation, refroidissement…"></textarea>
+        </section>
+
+        <div class="cover-actions hidden" id="cover-actions">
+          <button id="cover-cancel" class="btn btn-ghost">Annuler</button>
+          <button id="cover-save" class="btn btn-primary">Enregistrer et continuer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raccourcis clavier — bas à droite -->
+    <div class="cover-hints" id="cover-hints-read">
+      <button class="cover-hint" id="cover-hint-continue" title="Ouvrir le board du workspace">
+        <kbd>Entrée</kbd><span>Continuer</span>
+      </button>
+      <button class="cover-hint cover-hint-edit" id="cover-hint-edit" title="Modifier les deux paragraphes">
+        <kbd>Suppr</kbd><span>Modifier le texte</span>
+      </button>
+    </div>
+    <div class="cover-hints hidden" id="cover-hints-edit">
+      <span class="cover-hint"><kbd>Échap</kbd><span>Annuler</span></span>
+      <span class="cover-hint"><kbd>Ctrl</kbd>+<kbd>Entrée</kbd><span>Enregistrer</span></span>
+    </div>
+  </div>
+
   <!-- ============ MODALE INFOS DOSSIER LLD ============ -->
   <div id="lld-modal" class="modal hidden">
     <div class="modal-box modal-box-lg">
@@ -410,6 +457,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>
