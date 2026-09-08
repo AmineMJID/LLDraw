@@ -58,6 +58,11 @@ via localStorage, en secours).
    puis glissez la carte **Rack** sur le board. Vous pouvez placer plusieurs
    racks, les déplacer en tirant l'en-tête, **changer leur taille** via le menu
    dans l'en-tête, et les **renommer** en double-cliquant sur le nom.
+   Le sélecteur de **site** de l'en-tête rattache le rack à un site déclaré
+   dans la fiche du dossier (onglet **Sites**) : une **pastille colorée**
+   identifie le site, reprise dans les exports (PDF, PNG, CSV, Excel). La
+   section **Sites** du panneau de gauche permet de **filtrer le board** par
+   site (les racks des autres sites sont atténués).
    L'en-tête affiche des **métriques de capacité** mises à jour en direct :
    espace occupé (`8/12U`, en rouge si plein), **puissance totale** et
    **poids total** des devices (si renseignés). **Double-cliquez sur les
@@ -148,12 +153,28 @@ via localStorage, en secours).
     revient en élévations, centré sur le device. La topologie est sauvegardée
     dans le workspace et se recadre automatiquement (⌂).
 12. **Infos du dossier LLD** : le bouton **📘** de la barre du haut ouvre la
-    fiche du dossier : **client**, **auteur**, **version**, **historique des
-    révisions** (tableau ajouté à la page de garde du PDF) et **registre
-    VLANs & subnets** (ID, nom, subnet, passerelle, usage). Le bouton
-    **🔎 Détecter depuis les ports** ajoute automatiquement les VLANs
-    utilisés sur les ports ou les liens logiques mais absents du registre.
-    Ces informations alimentent les sections correspondantes du document LLD.
+    fiche du dossier, organisée en onglets :
+    - **📄 Document** — **client**, **auteur**, **version**, textes du dossier
+      (**1. Objectif du document**, **2.2. Infrastructure existante**,
+      **3. Architecture cible**) et **historique des révisions** (tableau
+      ajouté à la page de garde du PDF) ;
+    - **🌐 Réseau** — **nomenclature** (type d'objet, préfixe, exemple, règle)
+      avec un bouton **🔎 Générer depuis les devices** qui détecte les
+      préfixes utilisés (FW, SW, SRV…) et propose le type d'objet, et le
+      **registre d'adressage IP global** (VLAN, nom, site, subnet, passerelle,
+      usage). Le bouton **🔎 Détecter depuis les ports** ajoute automatiquement
+      les VLANs utilisés sur les ports ou les liens logiques mais absents du
+      registre ;
+    - **🏢 Sites** — gestion des sites du dossier (nom, adresse, contacts,
+      description). **Site A / Site B** sont créés par défaut ; chaque rack se
+      rattache à un site via le sélecteur de son en-tête (pastille colorée,
+      filtrage du board par site). Supprimer un site détache les racks qui y
+      étaient rattachés ;
+    - **📚 Chapitres** sera activé par un lot suivant.
+    Ces informations alimentent les chapitres correspondants du document LLD
+    (le ch. 2.1 affiche le tableau des sites et les racks par site, et la
+    colonne **Site** apparaît dans l'inventaire, les ports et la synthèse des
+    racks de tous les exports).
 
 Tout est sauvegardé automatiquement : sur le **serveur (fichier `data/state.json`)**
 quand l'application est lancée avec `server.py`, et sinon dans le navigateur

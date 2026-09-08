@@ -130,14 +130,21 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
       quand le document contient topologie **et** élévations — l'image
       d'élévations pouvait être ignorée par certains lecteurs PDF)
 
-### ⬜ Lot 2 — Sites (ch. 2.1 + base des ch. 6 et 8)
-- [ ] Gestion des sites dans la modale 📘 : ajout/renommage/suppression
-      (Site A, Site B par défaut), champs : nom, adresse, contacts, description
-- [ ] **Rattachement des racks à un site** : sélecteur dans l'en-tête du rack,
-      badge coloré par site (repris dans les exports)
-- [ ] Filtrage/visualisation par site sur le board (badge + tri)
-- [ ] PDF ch. 2.1 : tableau des sites + infos + racks par site
-- [ ] Colonne « Site » ajoutée aux exports Inventaire/Ports (CSV + XLSX + PDF)
+### ✅ Lot 2 — Sites (ch. 2.1 + base des ch. 6 et 8) — **FAIT**
+- [x] Onglet **🏢 Sites** dans la modale 📘 : cartes éditables (nom, adresse,
+      contacts, description), ajout/suppression ; **Site A + Site B créés par
+      défaut** (workspaces nouveaux et anciens) ; la suppression d'un site
+      détache les racks rattachés (message + Ctrl+Z)
+- [x] **Rattachement des racks à un site** : sélecteur dans l'en-tête du rack
+      + **pastille colorée** (8 couleurs par position)
+- [x] **Filtre par site** dans le panneau de gauche (racks des autres sites
+      atténués), options rafraîchies à l'ouverture d'un workspace et par undo
+- [x] PDF ch. 2.1 : tableau des sites + racks par site (taille, occupation,
+      devices, puissance, poids) ; racks sans site « — »
+- [x] Colonne **Site** dans Inventaire / Ports / Synthèse racks (CSV, XLSX,
+      PDF) + pastille et nom du site sur les exports PNG / PDF 1 page
+- [x] Correctif rétroactif Lot 1 : la sauvegarde de la modale 📘 ne persistait
+      pas Objectif / Existant / Architecture / Nomenclature — corrigé
 
 ### ⬜ Lot 3 — Catégories de devices (prépare ch. 3.1, 7→13)
 - [ ] Champ **Catégorie** sur les devices (bibliothèque + exemplaires) :

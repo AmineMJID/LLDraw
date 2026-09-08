@@ -780,6 +780,34 @@ body.cabling .port.connectable {
   max-width: 150px;
 }
 .rack-title:hover { text-decoration: underline dotted; }
+.rack-site-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #545b68;
+  flex: none;
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,.35);
+}
+.rack-site-dot.none { background: #545b68; }
+.rack-site-sel {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e8ebf1;
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 5px;
+  padding: 2px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  max-width: 92px;
+}
+.rack-site-sel option { color: #1f2733; }
+.rack.site-dim {
+  opacity: .22;
+  filter: saturate(.35);
+  transition: opacity .25s, filter .25s;
+}
 .rack-size-sel {
   font-family: inherit;
   font-size: 10px;
@@ -1721,3 +1749,20 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 .lld-row-del:hover { background: rgba(220, 38, 38, .1); }
 .lld-vlan-actions { display: flex; gap: 8px; }
+/* Cartes « site » de l'onglet Sites (2 lignes chacune) */
+.lld-site {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .55);
+}
+.lld-site .lld-row:last-child { padding-right: 26px; }
+.lld-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}

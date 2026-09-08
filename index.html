@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=32">
+  <link rel="stylesheet" href="styles.css?v=33">
 </head>
 <body>
   <header class="topbar">
@@ -74,6 +74,16 @@
   <div class="layout">
     <!-- ============ PANNEAU LATERAL ============ -->
     <aside class="sidebar">
+      <section id="site-filter-sec" class="hidden">
+        <h2>Sites</h2>
+        <label class="rack-size-row">
+          Filtrer le board
+          <select id="site-filter">
+            <option value="all">Tous les sites</option>
+          </select>
+        </label>
+        <p class="hint">Les racks des autres sites sont atténués. Rattachez un rack à son site via le sélecteur dans son en-tête.</p>
+      </section>
       <section>
         <h2>Composants</h2>
         <div class="palette">
@@ -315,7 +325,7 @@
       <div class="lld-tabs">
         <button type="button" class="lld-tab active" data-tab="doc">📄 Document</button>
         <button type="button" class="lld-tab" data-tab="rzo">🌐 Réseau</button>
-        <button type="button" class="lld-tab" data-tab="sites" disabled title="Gestion des sites — à venir (lot 2)">🏢 Sites</button>
+        <button type="button" class="lld-tab" data-tab="sites" title="Gérer les sites du dossier (Site A, Site B…)">🏢 Sites</button>
         <button type="button" class="lld-tab" data-tab="chaps" disabled title="Notes de configuration par chapitre — à venir (lot 5)">📚 Chapitres</button>
       </div>
 
@@ -366,6 +376,16 @@
           <button id="lld-add-vlan" class="btn btn-ghost btn-sm">＋ Ajouter un VLAN</button>
           <button id="lld-detect-vlans" class="btn btn-ghost btn-sm" title="Ajouter automatiquement les VLANs utilisés sur les ports mais absents du registre">🔎 Détecter depuis les ports</button>
         </div>
+      </div>
+
+      <!-- Onglet Sites -->
+      <div class="lld-pane hidden" data-pane="sites">
+        <p class="lld-hint">
+          Les sites structurent le dossier (chapitre 2) : rattachez chaque rack à son site
+          via le sélecteur de son en-tête. Les sites alimentent aussi le chapitre 2.1 du PDF.
+        </p>
+        <div class="lld-table" id="lld-sites"></div>
+        <button id="lld-add-site" class="btn btn-ghost btn-sm">＋ Ajouter un site</button>
       </div>
 
       <div class="modal-actions">
@@ -444,6 +464,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>

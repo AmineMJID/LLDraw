@@ -133,6 +133,7 @@ function normInvFields(d) {
 function normalizeRack(r) {
   r.sizeU = r.sizeU || DEFAULT_RACK_U;
   if (!r.name) r.name = `Rack ${r.sizeU}U`;
+  if (typeof r.siteId !== 'string') r.siteId = '';   // rattachement à un site
   r.instances = Array.isArray(r.instances) ? r.instances : [];
   r.instances.forEach(i => {
     i.ports = Array.isArray(i.ports) ? i.ports : [];
@@ -157,6 +158,44 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ---------- Sites ----------
+// Couleurs d'identification (badge / pastille), attribuées par position
+const SITE_COLORS = ['#60a5fa', '#34d399', '#fbbf24', '#c084fc', '#f87171', '#22d3ee', '#a3e635', '#f472b6'];
+
+function defaultSites() {
+  return [
+    { id: uid(), name: 'Site A', address: '', contact: '', desc: '' },
+    { id: uid(), name: 'Site B', address: '', contact: '', desc: '' }
+  ];
+}
+
+// Normalise la liste des sites d'un workspace (rétro-compatibilité :
+// un workspace sans sites obtient Site A + Site B par défaut)
+function normSites(w) {
+  const arr = Array.isArray(w.sites) ? w.sites : null;
+  w.sites = (arr ?? defaultSites()).filter(s => s && typeof s === 'object').map(s => ({
+    id: String(s.id || uid()),
+    name: String(s.name ?? '').slice(0, 40).trim() || 'Site',
+    address: String(s.address ?? '').slice(0, 80),
+    contact: String(s.contact ?? '').slice(0, 80),
+    desc: String(s.desc ?? '').slice(0, 200)
+  }));
+  return w.sites;
+}
+
+function siteById(ws, id) {
+  return (ws?.sites || []).find(s => s.id === id) || null;
+}
+function siteName(ws, rack) {
+  const s = siteById(ws, rack?.siteId);
+  return s ? s.name : '';
+}
+function siteColor(ws, rack) {
+  const sites = ws?.sites || [];
+  const idx = sites.findIndex(s => s.id === rack?.siteId);
+  return idx >= 0 ? SITE_COLORS[idx % SITE_COLORS.length] : null;
+}
+
 // ---------- État ----------
 // Structure :
 //   state.devices           -> bibliothèque PARTAGÉE entre workspaces
@@ -169,12 +208,13 @@ let topoLinkPending = null;    // noeud de départ pendant la création d'un lie
 let dragPayload = null;
 let popoverCtx = null;
 let suppressPortClick = false;   // true juste après un glisser-déposer de port
+let siteFilter = 'all';          // id du site filtré sur le board, 'all' = tous
 
 // Vue du board (décalage + échelle) — mémorisée par workspace
 const view = { x: 80, y: 50, scale: 1 };
 
 function makeWorkspace(name, racks = []) {
-  return { id: uid(), name, racks, cables: [], view: null, viewTouched: false, updatedAt: Date.now() };
+  return { id: uid(), name, racks, cables: [], sites: defaultSites(), view: null, viewTouched: false, updatedAt: Date.now() };
 }
 
 function emptyState() {
@@ -214,6 +254,10 @@ function normalizeState(s) {
   s.workspaces.forEach(w => {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
     if (!Array.isArray(w.cables)) w.cables = [];
+    // Sites du workspace + nettoyage des racks pointant vers un site disparu
+    normSites(w);
+    const siteIds = new Set(w.sites.map(x => x.id));
+    w.racks.forEach(r => { if (r.siteId && !siteIds.has(r.siteId)) r.siteId = ''; });
     if (typeof w.updatedAt !== 'number') w.updatedAt = 0;
     // Vue topologique (diagramme logique) : structure + nettoyage
     if (!w.topology || !Array.isArray(w.topology.nodes) || !Array.isArray(w.topology.links))
@@ -395,6 +439,7 @@ function refreshAll() {
     }
   }
   renderPalette();
+  renderSiteFilter();
   renderHomeListSafe();
   const stillExists = ws && state.workspaces.some(w => w.id === ws.id);
   if (stillExists) {
@@ -760,6 +805,30 @@ function renderBoard() {
 }
 
 /* ============================================================
+   FILTRE PAR SITE (panneau de gauche)
+   ============================================================ */
+
+// Met à jour le sélecteur « Filtrer le board » de la sidebar.
+// Masqué si le workspace courant n'a aucun site déclaré.
+function renderSiteFilter() {
+  const sec = $('#site-filter-sec');
+  const sel = $('#site-filter');
+  if (!sec || !sel) return;
+  const ws = active();
+  const sites = ws?.sites || [];
+  sec.classList.toggle('hidden', sites.length === 0);
+  if (siteFilter !== 'all' && !sites.some(s => s.id === siteFilter)) siteFilter = 'all';
+  sel.innerHTML = '<option value="all">Tous les sites</option>' +
+    sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  sel.value = siteFilter;
+}
+
+$('#site-filter').addEventListener('change', e => {
+  siteFilter = e.target.value;
+  renderBoard();
+});
+
+/* ============================================================
    RACK
    ============================================================ */
 
@@ -770,11 +839,21 @@ function renderRack(rack) {
   el.style.left = rack.x + 'px';
   el.style.top  = rack.y + 'px';
 
+  // Filtre par site : atténuer les racks hors site sélectionné
+  if (siteFilter !== 'all' && rack.siteId !== siteFilter) el.classList.add('site-dim');
+
   // ---- En-tête ----
+  const ws = active();
+  const sites = ws?.sites || [];
   const header = document.createElement('div');
   header.className = 'rack-header';
   header.innerHTML = `
     <span class="rack-led"></span>
+    <span class="rack-site-dot${siteColor(ws, rack) ? '' : ' none'}" title="Site du rack"></span>
+    <select class="rack-site-sel${sites.length ? '' : ' hidden'}" title="Rattacher ce rack à un site">
+      <option value="">— site —</option>
+      ${sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+    </select>
     <span class="rack-title" title="Double-cliquez pour renommer"></span>
     <select class="rack-size-sel" title="Changer la taille du rack">
       ${RACK_SIZES.map(u => `<option value="${u}">${u}U</option>`).join('')}
@@ -788,6 +867,27 @@ function renderRack(rack) {
   titleEl.textContent = rack.name;
   const sizeSel = header.querySelector('.rack-size-sel');
   sizeSel.value = String(rack.sizeU);
+
+  // Pastille de site (couleur attribuée par position dans la liste des sites)
+  const dotEl = header.querySelector('.rack-site-dot');
+  const dotColor = siteColor(ws, rack);
+  if (dotColor) {
+    dotEl.style.background = dotColor;
+    dotEl.title = `Site : ${siteName(ws, rack)}`;
+  } else {
+    dotEl.title = 'Aucun site';
+  }
+
+  // Rattachement du rack à un site
+  const siteSel = header.querySelector('.rack-site-sel');
+  siteSel.value = rack.siteId || '';
+  siteSel.addEventListener('change', e => {
+    pushHistory();
+    rack.siteId = e.target.value;
+    touchWorkspace(active());
+    saveState();
+    renderBoard();
+  });
 
   // Métriques de capacité : U occupés, puissance, poids (+ budgets, double-clic)
   const metricsEl = header.querySelector('.rack-metrics');
@@ -2374,6 +2474,7 @@ function openWorkspace(id) {
   state.activeWorkspaceId = ws.id;
   saveState();
   pendingPort = null;
+  siteFilter = 'all';
   hideCablePopoverSafe();
 
   hidePortPopover();
@@ -2382,6 +2483,7 @@ function openWorkspace(id) {
 
   hideHome();
   renderBoard();
+  renderSiteFilter();   // options du filtre = sites du workspace ouvert
   applyWorkspaceView();
 
   // Le viewport peut finir son recalcul de taille après la fermeture de
@@ -2912,6 +3014,34 @@ function lldAddRow(container, cols, data = {}) {
   container.appendChild(row);
 }
 
+// ---- Lignes « site » (2 lignes : nom/adresse/contacts + description) ----
+function lldAddSiteRow(container, site = {}) {
+  const card = document.createElement('div');
+  card.className = 'lld-site';
+  card.dataset.id = site.id || '';
+  card.innerHTML = `
+    <div class="lld-row">
+      <input type="text" data-k="name" placeholder="Nom (ex : Site A)" maxlength="40" style="width:112px">
+      <input type="text" data-k="address" placeholder="Adresse" maxlength="80" class="lld-flex">
+      <input type="text" data-k="contact" placeholder="Contacts" maxlength="80" style="width:118px">
+      <button type="button" class="lld-row-del" title="Supprimer ce site">✕</button>
+    </div>
+    <div class="lld-row">
+      <input type="text" data-k="desc" placeholder="Description / notes" maxlength="200" class="lld-flex">
+    </div>`;
+  card.querySelectorAll('input').forEach(inp => { inp.value = site[inp.dataset.k] || ''; });
+  card.querySelector('.lld-row-del').addEventListener('click', () => card.remove());
+  container.appendChild(card);
+}
+
+function lldSitesFrom(container) {
+  return [...container.querySelectorAll('.lld-site')].map(card => {
+    const o = { id: card.dataset.id || '' };
+    card.querySelectorAll('input').forEach(inp => { o[inp.dataset.k] = inp.value; });
+    return o;
+  });
+}
+
 // ---- Onglets de la modale ----
 document.querySelectorAll('#lld-modal .lld-tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -2944,6 +3074,9 @@ function openLldModal() {
   const vlans = $('#lld-vlans');
   vlans.innerHTML = '';
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
+  const sitesEl = $('#lld-sites');
+  sitesEl.innerHTML = '';
+  normSites(ws).forEach(s => lldAddSiteRow(sitesEl, s));
   lldShowTab('doc');
   $('#lld-modal').classList.remove('hidden');
   $('#lld-client').focus();
@@ -2964,6 +3097,11 @@ $('#lld-add-vlan').addEventListener('click', () => lldAddRow($('#lld-vlans'), LL
 $('#lld-add-nomen').addEventListener('click', () => {
   lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {});
   [...$('#lld-nomen').querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+});
+$('#lld-add-site').addEventListener('click', () => {
+  lldAddSiteRow($('#lld-sites'), {});
+  const cards = $('#lld-sites').querySelectorAll('.lld-site');
+  cards[cards.length - 1].querySelector('input').focus();
 });
 
 // Détecte les préfixes utilisés par les devices et câbles du workspace
@@ -3025,11 +3163,37 @@ $('#lld-save').addEventListener('click', () => {
   L.client = $('#lld-client').value.trim().slice(0, 80);
   L.author = $('#lld-author').value.trim().slice(0, 80);
   L.version = $('#lld-version').value.trim().slice(0, 80);
+  L.objectif = $('#lld-objectif').value.slice(0, 4000);
+  L.existant = $('#lld-existant').value.slice(0, 4000);
+  L.architecture = $('#lld-architecture').value.slice(0, 4000);
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
+  L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
+
+  // Sites : on reserialize la liste (les nouveaux reçoivent un id généré)
+  const prevIds = new Set(ws.sites.map(s => s.id));
+  ws.sites = lldSitesFrom($('#lld-sites'))
+    .filter(s => s.name.trim())
+    .map(s => ({
+      id: s.id && prevIds.has(s.id) ? s.id : uid(),
+      name: s.name.trim().slice(0, 40),
+      address: s.address.trim().slice(0, 80),
+      contact: s.contact.trim().slice(0, 80),
+      desc: s.desc.trim().slice(0, 200)
+    }));
+  // Racks pointant vers un site supprimé -> détachés
+  const newIds = new Set(ws.sites.map(s => s.id));
+  let detached = 0;
+  ws.racks.forEach(r => { if (r.siteId && !newIds.has(r.siteId)) { r.siteId = ''; detached++; } });
+  if (detached) {
+    alert(`${detached} rack(s) étaient rattaché(s) à un site supprimé :\nils sont maintenant « sans site ».`);
+  }
+
   touchWorkspace(ws);
   saveState();
   $('#lld-modal').classList.add('hidden');
+  renderBoard();        // met à jour les sélecteurs/pastilles de site des racks
+  renderSiteFilter();
 });
 
 /* ============================================================
@@ -3496,6 +3660,18 @@ async function renderPlanCanvas() {
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillText(truncate(ctx, rack.name, RACK_W - 90), x + 30, y + 15);
+    // Site du rack : pastille colorée + nom, après le titre
+    const sName = siteName(ws, rack);
+    if (sName) {
+      const tW = ctx.measureText(truncate(ctx, rack.name, RACK_W - 90)).width;
+      const sx = x + 30 + tW + 8;
+      ctx.fillStyle = siteColor(ws, rack) || '#9aa3b2';
+      roundRect(sx, y + 11, 6, 6, 2);
+      ctx.fill();
+      ctx.fillStyle = '#aab4c4';
+      ctx.font = '9.5px "Segoe UI", sans-serif';
+      ctx.fillText(truncate(ctx, sName, Math.max(30, RACK_W - 110 - tW)), sx + 9, y + 15);
+    }
 
     // Bâti
     const by = y + 28;
@@ -3860,10 +4036,10 @@ function sortedRacks(ws) {
 }
 
 function invRows(ws) {
-  const rows = [['Rack', 'Étage', 'Taille', 'Nom', 'Marque', 'Modèle', 'Référence',
+  const rows = [['Rack', 'Site', 'Étage', 'Taille', 'Nom', 'Marque', 'Modèle', 'Référence',
                  'N° série', 'IP mgmt', 'VLAN(s)', 'Puissance (W)', 'Poids (kg)', 'Ports']];
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
-    rows.push([rack.name, slotLabel(inst), inst.sizeU + 'U', inst.name,
+    rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.sizeU + 'U', inst.name,
                inst.brand || '', inst.model || '', inst.partRef || '', inst.serial || '',
                inst.ipMgmt || '', inst.vlan || '',
                inst.watts || '', inst.weightKg || '', (inst.ports || []).length]);
@@ -3884,7 +4060,7 @@ function cablingRows(ws) {
   return rows;
 }
 function portsRows(ws) {
-  const rows = [['Rack', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble']];
+  const rows = [['Rack', 'Site', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble']];
   const cableOf = (instId, portId) => {
     const c = (ws?.cables || []).find(cb =>
       (cb.a?.instId === instId && cb.a?.portId === portId) ||
@@ -3893,20 +4069,20 @@ function portsRows(ws) {
   };
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
     for (const p of (inst.ports || [])) {
-      rows.push([rack.name, slotLabel(inst), inst.name, p.name, p.label || '',
+      rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name, p.name, p.label || '',
                  p.ip || '', p.vlan || '', cableOf(inst.id, p.id)]);
     }
   }
   return rows;
 }
 function racksRows(ws) {
-  const rows = [['Rack', 'Taille', 'U occupés', 'U libres',
+  const rows = [['Rack', 'Site', 'Taille', 'U occupés', 'U libres',
                  'Puissance totale (W)', 'Budget puissance (W)',
                  'Poids total (kg)', 'Charge max (kg)', 'Devices']];
   for (const rack of sortedRacks(ws)) {
     const usedU = rack.instances.reduce((s, i) => s + i.sizeU, 0);
     rows.push([
-      rack.name, rack.sizeU + 'U', usedU, rack.sizeU - usedU,
+      rack.name, siteName(ws, rack), rack.sizeU + 'U', usedU, rack.sizeU - usedU,
       rack.instances.reduce((s, i) => s + (i.watts || 0), 0) || '',
       rack.maxWatts || '',
       Math.round(rack.instances.reduce((s, i) => s + (i.weightKg || 0), 0) * 10) / 10 || '',
@@ -4315,7 +4491,34 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   // ---- 2. Aperçu du site ----
   chapter('2', 'Aperçu du site');
   sub('2.1', 'Information sur le site');
-  placeholder();
+  const sites = ws.sites || [];
+  if (sites.length) {
+    const sr = [['Site', 'Adresse', 'Contacts', 'Description']];
+    sites.forEach(s => sr.push([s.name, s.address, s.contact, s.desc]));
+    drawTable(sr, [1.5, 2.7, 2.1, 3.7], 8);
+    miniTitle('Racks par site');
+    const rks = sortedRacks(ws);
+    if (rks.length) {
+      const rr = [['Site', 'Rack', 'Taille', 'U occup\u00e9s', 'U libres', 'Devices', 'Puissance (W)', 'Poids (kg)']];
+      [...rks].sort((a, b) =>
+        (siteName(ws, a) || '\uFFFF').localeCompare(siteName(ws, b) || '\uFFFF', 'fr') ||
+        a.name.localeCompare(b.name, 'fr', { numeric: true })
+      ).forEach(r => {
+        const usedU = r.instances.reduce((s, i) => s + i.sizeU, 0);
+        rr.push([
+          siteName(ws, r) || '\u2014', r.name, r.sizeU + 'U', usedU, r.sizeU - usedU,
+          r.instances.length,
+          r.instances.reduce((s, i) => s + (i.watts || 0), 0) || '',
+          Math.round(r.instances.reduce((s, i) => s + (i.weightKg || 0), 0)) || ''
+        ]);
+      });
+      drawTable(rr, [1.4, 2.2, 0.9, 1, 0.9, 1, 1.4, 1.2], 8);
+    } else {
+      note('Aucun rack dans ce workspace.');
+    }
+  } else {
+    note('Aucun site d\u00e9clar\u00e9 (fiche du dossier, onglet Sites).');
+  }
   sub('2.2', 'L\u2019infrastructure existante');
   if (L.existant.trim()) paragraph(L.existant);
   else placeholder();
@@ -4326,7 +4529,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   else placeholder();
   sub('3.1', 'Équipements');
   const ir = invRows(ws);
-  if (ir.length > 1) drawTable(ir, [1.7, 1.5, 0.9, 2.2, 1.6, 2.2, 1.8, 1.6, 1.4, 1.4, 1.2, 1, 0.9]);
+  if (ir.length > 1) drawTable(ir, [1.5, 1, 0.8, 0.7, 1.9, 1.4, 1.9, 1.6, 1.4, 1.2, 1, 0.85, 0.8, 0.7]);
   else note('Aucun équipement placé dans les racks de ce workspace.');
 
   // ---- 4. Conception Nomenclature et Adressage IP Global ----
@@ -4345,7 +4548,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   } else note('Aucun VLAN enregistré (fiche du dossier, onglet Réseau).');
   miniTitle('Plan d\u2019adressage & ports');
   const pr = portsRows(ws);
-  if (pr.length > 1) drawTable(pr, [1.6, 1.3, 2, 1.6, 1.8, 1.8, 1.1, 1.4]);
+  if (pr.length > 1) drawTable(pr, [1.4, 0.9, 0.8, 1.8, 1.4, 1.6, 1.6, 0.9, 1.2]);
   else note('Aucun port étiqueté.');
 
   // ---- 5. Conception et Configuration FAI ----
@@ -4404,7 +4607,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   // ---- 15. Câblage / Rack ----
   chapter('15', 'C\u00e2blage / Rack');
   miniTitle('Synthèse des racks (capacités)');
-  drawTable(racksRows(ws), [3, 1.4, 1.5, 1.4, 2, 2, 2, 2, 1.4]);
+  drawTable(racksRows(ws), [2.4, 1.1, 0.9, 1, 0.9, 1.5, 1.5, 1.4, 1.4, 1]);
   miniTitle('Tableau de c\u00e2blage');
   const cr = cablingRows(ws);
   if (cr.length > 1) drawTable(cr, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
