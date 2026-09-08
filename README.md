@@ -234,6 +234,25 @@ Ko. Trois mécanismes en limitent le coût en RAM et en CPU :
   (surcharge possible par exemplaire), et la photo est matérialisée dans les
   exemplaires concernés si le modèle est supprimé.
 
+### Fluidité du board (pan / zoom / déplacements)
+
+Le board est un élément de 8000×6000 px (grille de points + faces avant).
+Sans précaution, chaque frame de pan/zoom **repeint toute la surface visible**
+sur le thread principal — d'où un déplacement « à 10 fps » sur machine modeste.
+Quatre mécanismes le rendent fluide :
+
+- **calque GPU dédié** — `will-change: transform` sur `.board` : le pan/zoom
+  est traité par le compositeur sans repeindre la grille ni les photos ;
+- **`requestAnimationFrame`** — les `pointermove` (jusqu'à 240 Hz sur une
+  souris gamer) sont coalescés en une mise à jour visuelle par frame de
+  l'écran, pour le pan, le déplacement des baies et celui des nœuds de
+  topologie ;
+- **drag composité des baies** — pendant le déplacement d'une baie, seule une
+  translation (`transform`, GPU) est animée ; `left/top` et la sauvegarde ne
+  sont écrits qu'au relâchement ;
+- **libellé de zoom** — le pourcentage n'écrit dans le DOM que lorsqu'il
+  change réellement.
+
 ## 🎬 Démonstration
 
 Le dossier **`demo/`** contient un datacenter de démonstration complet

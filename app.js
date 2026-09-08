@@ -657,9 +657,16 @@ document.addEventListener('keydown', e => {
 const viewport = $('#board-viewport');
 const board    = $('#board');
 
+let lastZoomPct = -1;
 function applyView() {
   board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
-  $('#z-pct').textContent = Math.round(view.scale * 100) + '%';
+  // Le libellé de zoom ne change qu'au changement de pourcentage (évite une
+  // mutation DOM par événement pointermove pendant le pan)
+  const pct = Math.round(view.scale * 100);
+  if (pct !== lastZoomPct) {
+    lastZoomPct = pct;
+    $('#z-pct').textContent = pct + '%';
+  }
   // Mémoriser la vue du workspace courant
   const ws = active();
   if (ws && ws.viewTouched) {
@@ -796,6 +803,7 @@ viewport.addEventListener('pointerdown', e => {
   const startX = e.clientX, startY = e.clientY;
   const ox = view.x, oy = view.y;
   let panned = false;
+  let panRaf = 0;
   viewport.setPointerCapture(e.pointerId);
   viewport.classList.add('panning');
 
@@ -803,13 +811,18 @@ viewport.addEventListener('pointerdown', e => {
     panned = true;
     view.x = ox + ev.clientX - startX;
     view.y = oy + ev.clientY - startY;
-    applyView();
+    // Appliquer la vue au rythme de l'écran : les souris/touchpads émettent
+    // jusqu'à 240 événements/s, inutile de payer 240 mises à jour pour 60 fps.
+    if (!panRaf) {
+      panRaf = requestAnimationFrame(() => { panRaf = 0; applyView(); });
+    }
   };
   const onUp = () => {
     viewport.classList.remove('panning');
     viewport.removeEventListener('pointermove', onMove);
     viewport.removeEventListener('pointerup', onUp);
-    if (panned) markViewTouched();
+    if (panRaf) { cancelAnimationFrame(panRaf); panRaf = 0; }
+    if (panned) { applyView(); markViewTouched(); }
   };
   viewport.addEventListener('pointermove', onMove);
   viewport.addEventListener('pointerup', onUp);
@@ -1167,18 +1180,32 @@ function renderRack(rack) {
     const startX = e.clientX, startY = e.clientY;
     const ox = rack.x, oy = rack.y;
     let moved = false;
+    let dragRaf = 0;
     header.setPointerCapture(e.pointerId);
     const onMove = ev => {
       moved = true;
       rack.x = Math.max(0, Math.min(ox + (ev.clientX - startX) / view.scale, BOARD_W - RACK_W));
       rack.y = Math.max(0, Math.min(oy + (ev.clientY - startY) / view.scale, BOARD_H - rackHeight(rack)));
-      el.style.left = rack.x + 'px';
-      el.style.top  = rack.y + 'px';
+      // translate composité (GPU) pendant le drag — left/top ne sont écrits
+      // qu'au relâchement, ce qui évite un layout + repaint par frame
+      el.classList.add('dragging');
+      if (!dragRaf) {
+        dragRaf = requestAnimationFrame(() => {
+          dragRaf = 0;
+          el.style.transform = `translate(${rack.x - ox}px, ${rack.y - oy}px)`;
+        });
+      }
     };
     const onUp = () => {
       header.removeEventListener('pointermove', onMove);
       header.removeEventListener('pointerup', onUp);
+      if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
+      el.classList.remove('dragging');
+      el.style.transform = '';
       if (moved) {
+        // Position définitive (données + style), une seule fois
+        el.style.left = rack.x + 'px';
+        el.style.top  = rack.y + 'px';
         pushHistory();
         saveState();
       }
@@ -3812,17 +3839,28 @@ function renderTopology(ws) {
       if ((e.button !== 0 && e.pointerType === 'mouse') || topoLinkPending) return;
       e.stopPropagation();
       const startX = e.clientX, startY = e.clientY, ox = n.x, oy = n.y;
+      let nodeRaf = 0;
       el.setPointerCapture(e.pointerId);
       const onMove = ev => {
         n.x = Math.max(0, ox + (ev.clientX - startX) / view.scale);
         n.y = Math.max(0, oy + (ev.clientY - startY) / view.scale);
-        el.style.left = n.x + 'px';
-        el.style.top = n.y + 'px';
-        drawLinks();
+        // Une seule mise à jour visuelle par frame (drawLinks reconstruit le SVG)
+        if (!nodeRaf) {
+          nodeRaf = requestAnimationFrame(() => {
+            nodeRaf = 0;
+            el.style.left = n.x + 'px';
+            el.style.top = n.y + 'px';
+            drawLinks();
+          });
+        }
       };
       const onUp = () => {
         el.removeEventListener('pointermove', onMove);
         el.removeEventListener('pointerup', onUp);
+        if (nodeRaf) { cancelAnimationFrame(nodeRaf); nodeRaf = 0; }
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+        drawLinks();
         touchWorkspace(active());
         saveState();
       };

@@ -663,7 +663,14 @@ body.cabling .port.connectable {
   background-color: #e4e7ee;
   background-image: radial-gradient(circle, #b9bfcc 1.2px, transparent 1.2px);
   background-size: 24px 24px;
+  /* Calque compositeur dédié : pan/zoom traités par le GPU sans repeindre
+     la grille de points ni les faces avant à chaque frame. */
+  will-change: transform;
 }
+
+/* Baie en cours de déplacement : compositage GPU du translate */
+.rack.dragging { will-change: transform; z-index: 10; }
+.rack.dragging .rack-header { cursor: grabbing; }
 
 .board-empty {
   position: absolute;
