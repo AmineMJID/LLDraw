@@ -2461,9 +2461,10 @@ $('#btn-workspaces').addEventListener('click', showHome);
 /* ============================================================
    PAGE DE GARDE — affichée à l'ouverture d'un workspace
    - Deux paragraphes : objectif du document + informations du site
-   - Animation d'apparition (carte qui monte, texte qui se révèle)
-   - Entrée : passer au board · Suppr : modifier les textes
-   - En édition : Échap annule, Ctrl+Entrée enregistre et continue
+   - Style épuré clair, taille du texte adaptée à la résolution
+   - Animation d'écriture : le texte se tape caractère par caractère
+   - Entrée : 1er appui complète l'animation, 2e appui passe au board
+   - Suppr : modifier les textes (Échap annule, Ctrl+Entrée enregistre)
    ============================================================ */
 
 const coverScreen = $('#cover-screen');
@@ -2474,21 +2475,119 @@ const COVER_PLACEHOLDER = {
 let coverWsId = null;        // workspace présenté par la page de garde
 let coverEditing = false;    // true pendant l'édition des paragraphes
 
+// ---------- Animation d'écriture (typewriter) ----------
+const COVER_TYPE_DELAY = [6, 14];   // ms par caractère (total ~5-10 s)
+const coverReduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+let coverTypeToken = 0;      // incrémenté pour annuler la frappe en cours
+let coverTyping = false;     // une animation d'écriture est-elle en cours ?
+
 function coverWorkspace() {
   return state.workspaces.find(w => w.id === coverWsId) || null;
+}
+
+// Écrit `text` dans `el`, caractère par caractère, avec un rythme humain
+// (courtes pauses sur la ponctuation). `token` permet d'annuler en cours.
+function coverTypeInto(el, text, token) {
+  return new Promise(resolve => {
+    let i = 0;
+    (function step() {
+      if (token !== coverTypeToken) return resolve();   // annulée
+      if (i >= text.length) return resolve();
+      const ch = text[i++];
+      el.textContent += ch;
+      let d = COVER_TYPE_DELAY[0] + Math.random() * (COVER_TYPE_DELAY[1] - COVER_TYPE_DELAY[0]);
+      if (',;:'.includes(ch)) d = 60;
+      if ('.…'.includes(ch)) d = 140;
+      if (ch === '\n') d = 200;
+      setTimeout(step, d);
+    })();
+  });
+}
+
+// Affiche les paragraphes en les écrivant (ou en entier si motion réduite)
+async function coverPlayTyping() {
+  const ws = coverWorkspace();
+  if (!ws) return;
+  const token = ++coverTypeToken;
+  const A = { typed: $('#cover-type-a'), caret: $('#cover-caret-a'), p: $('#cover-objective'), text: ws.intro.objective || '' };
+  const B = { typed: $('#cover-type-b'), caret: $('#cover-caret-b'), p: $('#cover-siteinfo'), text: ws.intro.siteInfo || '' };
+  const titleB = $('#cover-title-b');
+
+  const ph = (t, key) => {          // placeholder grisé (texte vide)
+    t.typed.textContent = COVER_PLACEHOLDER[key];
+    t.p.classList.add('empty');
+    t.caret.classList.add('hidden');
+  };
+  const blank = t => {              // paragraphe vide, prêt à être écrit
+    t.typed.textContent = '';
+    t.p.classList.remove('empty');
+    t.caret.classList.add('hidden');
+  };
+
+  titleB.classList.remove('show');
+  coverTyping = false;
+
+  if (!A.text && !B.text) {         // rien à écrire : placeholders directs
+    ph(A, 'objective'); ph(B, 'siteInfo');
+    titleB.classList.add('show');
+    return;
+  }
+  if (coverReduceMotion) {          // accessibilité : pas d'animation
+    if (A.text) { A.typed.textContent = A.text; A.caret.classList.add('hidden'); A.p.classList.remove('empty'); }
+    else ph(A, 'objective');
+    if (B.text) { B.typed.textContent = B.text; B.caret.classList.add('hidden'); B.p.classList.remove('empty'); }
+    else ph(B, 'siteInfo');
+    titleB.classList.add('show');
+    return;
+  }
+
+  coverTyping = true;
+  if (A.text) blank(A); else ph(A, 'objective');
+  if (B.text) blank(B);
+
+  if (A.text) {
+    A.caret.classList.remove('hidden');       // curseur pendant la frappe
+    await coverTypeInto(A.typed, A.text, token);
+    if (token !== coverTypeToken) return;
+    A.caret.classList.add('hidden');          // pas de curseur résiduel
+  }
+
+  titleB.classList.add('show');               // le 2e titre entre en scène
+  await new Promise(r => setTimeout(r, 260));
+  if (token !== coverTypeToken) return;
+
+  if (B.text) {
+    B.caret.classList.remove('hidden');
+    await coverTypeInto(B.typed, B.text, token);
+    if (token !== coverTypeToken) return;
+    B.caret.classList.add('hidden');
+  } else {
+    ph(B, 'siteInfo');
+  }
+  coverTyping = false;
+}
+
+// Arrête l'animation et affiche le texte complet (1er appui d'Entrée).
+// Renvoie true si une animation était bien en cours.
+function coverCompleteTyping() {
+  if (!coverTyping) return false;
+  coverTypeToken++;
+  coverTyping = false;
+  fillCoverTexts();
+  return true;
 }
 
 // Remplit les paragraphes en lecture (placeholder grisé si vide)
 function fillCoverTexts() {
   const ws = coverWorkspace();
   if (!ws) return;
-  $('#cover-title').textContent = ws.name;
-  const obj = $('#cover-objective');
-  const site = $('#cover-siteinfo');
-  obj.textContent = ws.intro.objective || COVER_PLACEHOLDER.objective;
-  site.textContent = ws.intro.siteInfo || COVER_PLACEHOLDER.siteInfo;
-  obj.classList.toggle('empty', !ws.intro.objective);
-  site.classList.toggle('empty', !ws.intro.siteInfo);
+  $('#cover-type-a').textContent = ws.intro.objective || COVER_PLACEHOLDER.objective;
+  $('#cover-type-b').textContent = ws.intro.siteInfo || COVER_PLACEHOLDER.siteInfo;
+  $('#cover-objective').classList.toggle('empty', !ws.intro.objective);
+  $('#cover-siteinfo').classList.toggle('empty', !ws.intro.siteInfo);
+  $('#cover-caret-a').classList.add('hidden');
+  $('#cover-caret-b').classList.add('hidden');
+  $('#cover-title-b').classList.add('show');
 }
 
 // Libère le focus des zones d'édition (sinon les raccourcis lecture
@@ -2503,6 +2602,7 @@ function blurCoverInputs() {
 // Bascule lecture <-> édition (paragraphes ou zones de texte)
 function setCoverEditUI(edit) {
   coverEditing = edit;
+  if (edit) { coverTypeToken++; coverTyping = false; }   // stoppe la frappe
   coverScreen.classList.toggle('editing', edit);
   $('#cover-objective').classList.toggle('hidden', edit);
   $('#cover-siteinfo').classList.toggle('hidden', edit);
@@ -2536,11 +2636,15 @@ function autosizeCoverEdits() {
 function showCover(ws) {
   coverWsId = ws.id;
   setCoverEditUI(false);
-  // Le retrait de .hidden relance toutes les animations d'apparition
+  // Le retrait de .hidden relance les animations d'apparition,
+  // puis les paragraphes s'écrivent caractère par caractère.
   coverScreen.classList.remove('hidden');
+  coverPlayTyping();
 }
 
 function hideCover() {
+  coverTypeToken++;            // annule l'animation d'écriture
+  coverTyping = false;
   blurCoverInputs();
   coverScreen.classList.add('hidden');
   coverScreen.classList.remove('editing');
@@ -2587,13 +2691,27 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
-  if (e.key === 'Enter') { e.preventDefault(); coverContinue(); }
-  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); coverStartEdit(); }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // 1er Entrée : complète l'animation · 2e Entrée : passe au board
+    if (!coverCompleteTyping()) coverContinue();
+  }
+  else if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    coverCompleteTyping();            // stoppe la frappe avant d'éditer
+    coverStartEdit();
+  }
 });
 
 // Équivalents souris des raccourcis (boutons en bas à droite + actions)
-$('#cover-hint-continue').addEventListener('click', () => { if (!coverEditing) coverContinue(); });
-$('#cover-hint-edit').addEventListener('click', coverStartEdit);
+$('#cover-hint-continue').addEventListener('click', () => {
+  if (coverEditing) return;
+  if (!coverCompleteTyping()) coverContinue();
+});
+$('#cover-hint-edit').addEventListener('click', () => {
+  coverCompleteTyping();
+  coverStartEdit();
+});
 $('#cover-cancel').addEventListener('click', coverCancelEdit);
 $('#cover-save').addEventListener('click', coverSaveEdit);
 $('#cover-objective-edit').addEventListener('input', autosizeCoverEdits);

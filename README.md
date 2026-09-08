@@ -52,13 +52,16 @@ via localStorage, en secours).
      confirmation.
    - La création et la suppression des workspaces se font depuis l'écran d'accueil.
    - **Page de garde à l'ouverture d'un workspace** : choisir un workspace affiche
-     d'abord une page de garde animée avec deux paragraphes — **Objectif du
-     document** et **Informations sur le site** — enregistrés dans le workspace.
-     Raccourcis (rappelés en bas à droite de l'écran) : **Entrée** pour passer
-     directement au board, **Suppr** pour modifier les textes (puis **Échap**
-     pour annuler, **Ctrl+Entrée** pour enregistrer et continuer). Les textes
-     sont préremplis pour un nouveau workspace, modifiables à tout moment et
-     annulables via Ctrl+Z.
+     d'abord une page de garde épurée (fond clair, sans carte) avec deux
+     paragraphes — **Objectif du document** et **Informations sur le site** —
+     enregistrés dans le workspace. Le texte **s'écrit caractère par
+     caractère** (animation de frappe avec curseur, rythme humain) et sa
+     **taille s'adapte à la résolution de l'écran**. Raccourcis (rappelés en
+     bas à droite) : **Entrée** une première fois pour compléter l'animation,
+     une deuxième fois pour passer au board ; **Suppr** pour modifier les
+     textes (puis **Échap** pour annuler, **Ctrl+Entrée** pour enregistrer et
+     continuer). Les textes sont préremplis pour un nouveau workspace,
+     modifiables à tout moment et annulables via Ctrl+Z.
 1. **Navigation** : le board est une surface infinie — **molette** pour zoomer
    (centré sur le curseur), **glisser le fond** pour se déplacer. Les boutons
    en bas à droite (`−`, `+`, `⌂`) donnent aussi le zoom et le recentrage.
