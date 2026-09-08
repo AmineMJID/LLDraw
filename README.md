@@ -218,6 +218,16 @@ devices et ports persistent donc entre les sessions — et même d'un navigateur
 l'autre avec le serveur. Un rack se supprime individuellement via son ✕ ; un
 workspace entier se supprime depuis l'écran d'accueil.
 
+## 🎬 Démonstration
+
+Le dossier **`demo/`** contient un datacenter de démonstration complet
+(2 baies : 3 Nutanix, 1 Dell R740, 2 NAS, 2 WatchGuard, 2 Peplink, 2 Aruba,
+2 AKCP, 5 panneaux de brassage, 3 passe-câbles à brosse, 26 cordons, 14 nœuds
+de topologie, 6 flux et un dossier LLD intégralement rempli) ainsi que le PDF
+LLD généré et un guide de présentation — voir `demo/GUIDE-DEMO.md`.
+Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
+à la demande (les données de démonstration ne sont pas versionnées).
+
 ## Fichiers
 
 - `server.py` — serveur HTTP + persistance JSON (`data/state.json`)
@@ -228,3 +238,5 @@ workspace entier se supprime depuis l'écran d'accueil.
   décliné en PNG (`logo-512.png`, `logo-192.png`), favicon (`favicon.ico` /
   `favicon-*.png`) et `apple-touch-icon.png`
 - `data/state.json` — état sauvegardé (créé automatiquement, non versionné)
+- `demo/` — datacenter de démonstration (PDF LLD, rendus, guide) ;
+  `demo_datacenter.py` — script de (re)construction du workspace démo
