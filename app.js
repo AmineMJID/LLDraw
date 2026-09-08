@@ -319,6 +319,7 @@ let popoverCtx = null;
 let suppressPortClick = false;   // true juste après un glisser-déposer de port
 let siteFilter = 'all';          // id du site filtré sur le board, 'all' = tous
 let palCatFilter = 'all';        // filtre de la bibliothèque par catégorie
+let topoFlowFilter = '';        // id du flux mis en évidence dans la vue Topologie
 
 // Vue du board (décalage + échelle) — mémorisée par workspace
 const view = { x: 80, y: 50, scale: 1 };
@@ -365,6 +366,17 @@ function normalizeState(s) {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
     if (!Array.isArray(w.cables)) w.cables = [];
     w.cables.forEach(c => { if (typeof c.domain !== 'string') c.domain = ''; });
+    // Matrice des flux réseau (ch. 14)
+    if (!Array.isArray(w.flows)) w.flows = [];
+    w.flows = w.flows.filter(f => f && typeof f === 'object').map(f => ({
+      id: String(f.id || uid()),
+      name: String(f.name ?? '').slice(0, 60),
+      src: String(f.src ?? '').slice(0, 80),
+      dst: String(f.dst ?? '').slice(0, 80),
+      proto: String(f.proto ?? '').slice(0, 60),
+      sens: f.sens === 'uni' ? 'uni' : 'bi',
+      usage: String(f.usage ?? '').slice(0, 120)
+    }));
     // Sites du workspace + nettoyage des racks pointant vers un site disparu
     normSites(w);
     const siteIds = new Set(w.sites.map(x => x.id));
@@ -2676,6 +2688,7 @@ function openWorkspace(id) {
   saveState();
   pendingPort = null;
   siteFilter = 'all';
+  topoFlowFilter = '';
   hideCablePopoverSafe();
 
   hidePortPopover();
@@ -3302,6 +3315,42 @@ function lldZonesFrom(container) {
   }));
 }
 
+// ---- Lignes « flux » (2 lignes : nom/source/destination + protocole/sens/usage) ----
+function lldAddFlowRow(container, flow = {}) {
+  const card = document.createElement('div');
+  card.className = 'lld-flow';
+  card.dataset.id = flow.id || '';
+  card.innerHTML = `
+    <div class="lld-row">
+      <input type="text" data-k="name" placeholder="Nom du flux" maxlength="60" style="width:148px">
+      <input type="text" data-k="src" placeholder="Source (ex : LAN Site A, SRV-01…)" maxlength="80" class="lld-flex">
+      <input type="text" data-k="dst" placeholder="Destination (ex : Internet, FW-01…)" maxlength="80" class="lld-flex">
+      <button type="button" class="lld-row-del" title="Supprimer ce flux">✕</button>
+    </div>
+    <div class="lld-row">
+      <input type="text" data-k="proto" placeholder="Protocole / ports" maxlength="60" style="width:148px">
+      <select data-k="sens" style="width:140px" title="Sens du flux">
+        <option value="bi">⇄ Bidirectionnel</option>
+        <option value="uni">→ Unidirectionnel</option>
+      </select>
+      <input type="text" data-k="usage" placeholder="Usage / description" maxlength="120" class="lld-flex">
+    </div>`;
+  card.querySelectorAll('[data-k]').forEach(el => {
+    if (el.dataset.k === 'sens') el.value = flow.sens === 'uni' ? 'uni' : 'bi';
+    else el.value = flow[el.dataset.k] || '';
+  });
+  card.querySelector('.lld-row-del').addEventListener('click', () => card.remove());
+  container.appendChild(card);
+}
+
+function lldFlowsFrom(container) {
+  return [...container.querySelectorAll('.lld-flow')].map(card => {
+    const o = { id: card.dataset.id || '' };
+    card.querySelectorAll('[data-k]').forEach(el => { o[el.dataset.k] = el.value; });
+    return o;
+  });
+}
+
 // ---- Onglets de la modale ----
 document.querySelectorAll('#lld-modal .lld-tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -3340,6 +3389,9 @@ function openLldModal() {
   zonesEl.innerHTML = '';
   L.swZones.forEach(z => lldAddZoneRow(zonesEl, z));
   LLD_NOTE_FIELDS.forEach(([k, sel]) => { $(sel).value = L.catNotes[k] || ''; });
+  const flowsEl = $('#lld-flows');
+  flowsEl.innerHTML = '';
+  (ws.flows || []).forEach(f => lldAddFlowRow(flowsEl, f));
   const sitesEl = $('#lld-sites');
   sitesEl.innerHTML = '';
   normSites(ws).forEach(s => lldAddSiteRow(sitesEl, s));
@@ -3373,6 +3425,11 @@ $('#lld-add-zone').addEventListener('click', () => {
   lldAddZoneRow($('#lld-zones'), {});
   const rows = $('#lld-zones').querySelectorAll('.lld-zone-row');
   rows[rows.length - 1].querySelector('input').focus();
+});
+$('#lld-add-flow').addEventListener('click', () => {
+  lldAddFlowRow($('#lld-flows'), {});
+  const cards = $('#lld-flows').querySelectorAll('.lld-flow');
+  cards[cards.length - 1].querySelector('input').focus();
 });
 
 // Détecte les préfixes utilisés par les devices et câbles du workspace
@@ -3457,6 +3514,20 @@ $('#lld-save').addEventListener('click', () => {
   if (dezoned) {
     alert(`${dezoned} device(s) switching étaient rattaché(s) à une zone supprimée :\nils sont maintenant « hors zone ».`);
   }
+
+  // Flux réseau (ch. 14)
+  const prevFlowIds = new Set((ws.flows || []).map(f => f.id));
+  ws.flows = lldFlowsFrom($('#lld-flows'))
+    .filter(f => f.name.trim() || f.src.trim() || f.dst.trim())
+    .map(f => ({
+      id: f.id && prevFlowIds.has(f.id) ? f.id : uid(),
+      name: f.name.trim().slice(0, 60),
+      src: f.src.trim().slice(0, 80),
+      dst: f.dst.trim().slice(0, 80),
+      proto: f.proto.trim().slice(0, 60),
+      sens: f.sens === 'uni' ? 'uni' : 'bi',
+      usage: f.usage.trim().slice(0, 120)
+    }));
 
   // Sites : on reserialize la liste (les nouveaux reçoivent un id généré)
   const prevIds = new Set(ws.sites.map(s => s.id));
@@ -3543,6 +3614,11 @@ function setBoardMode(mode) {
 }
 $('#view-elev').addEventListener('click', () => setBoardMode('elev'));
 $('#view-topo').addEventListener('click', () => setBoardMode('topo'));
+// Mise en évidence des équipements d'un flux dans la vue Topologie
+$('#topo-flow-sel').addEventListener('change', e => {
+  topoFlowFilter = e.target.value;
+  renderBoard();
+});
 
 // Retrouve { rack, inst } d'un noeud
 function topoInstOf(ws, node) {
@@ -3560,6 +3636,26 @@ function renderTopology(ws) {
   $('#board-empty').classList.add('hidden');
   $('#topo-toolbar').classList.remove('hidden');
   $('#topo-empty').classList.toggle('hidden', topo.nodes.length > 0);
+
+  // Sélecteur de flux : met en évidence les équipements source/destination
+  const flowSel = $('#topo-flow-sel');
+  let flowMatch = null;
+  if (flowSel) {
+    const flows = ws.flows || [];
+    if (topoFlowFilter && !flows.some(f => f.id === topoFlowFilter)) topoFlowFilter = '';
+    flowSel.classList.toggle('hidden', flows.length === 0);
+    flowSel.innerHTML = '<option value="">🔄 Flux : tous</option>' +
+      flows.map(f => `<option value="${f.id}">${escapeHtml(f.name || f.src || f.dst || 'Flux')}</option>`).join('');
+    flowSel.value = topoFlowFilter;
+    if (topoFlowFilter) {
+      const flow = flows.find(f => f.id === topoFlowFilter);
+      if (flow) {
+        flowMatch = new Set(topo.nodes
+          .filter(n => { const info = topoInstOf(ws, n); return info && flowMatchesInst(flow, info.inst); })
+          .map(n => n.id));
+      }
+    }
+  }
 
   // Couche SVG des liens (sous les noeuds)
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -3592,6 +3688,9 @@ function renderTopology(ws) {
         let x1 = na.x + TOPO_NW / 2, y1 = na.y + TOPO_NH / 2;
         let x2 = nb.x + TOPO_NW / 2, y2 = nb.y + TOPO_NH / 2;
         const color = l.color || '#60a5fa';
+        // Flux sélectionné : atténuer les liens dont les deux extrémités
+        // ne font pas partie du flux
+        const dimL = flowMatch && !(flowMatch.has(l.a) && flowMatch.has(l.b));
 
         // Décaler les liens multiples entre les mêmes noeuds
         if (count > 1) {
@@ -3615,6 +3714,7 @@ function renderTopology(ws) {
         line.setAttribute('stroke', color);
         line.setAttribute('stroke-width', '2.5');
         if (l.style === 'dashed') line.setAttribute('stroke-dasharray', '7 5');
+        if (dimL) line.setAttribute('opacity', '0.15');
         svg.appendChild(line);
 
         const label = [l.label, l.speed, l.vlan && 'VLAN ' + l.vlan].filter(Boolean).join(' · ');
@@ -3630,6 +3730,7 @@ function renderTopology(ws) {
           t.setAttribute('stroke', '#0b0d11');
           t.setAttribute('stroke-width', '3.5');
           t.textContent = label;
+          if (dimL) t.setAttribute('opacity', '0.25');
           svg.appendChild(t);
         }
 
@@ -3654,6 +3755,7 @@ function renderTopology(ws) {
     const inst = info?.inst;
     const el = document.createElement('div');
     el.className = 'topo-node' + (topoLinkPending === n.id ? ' pending' : '');
+    if (flowMatch && !flowMatch.has(n.id)) el.classList.add('topo-dim');
     el.dataset.nodeId = n.id;
     el.style.left = n.x + 'px';
     el.style.top = n.y + 'px';
@@ -4388,6 +4490,26 @@ function portsRowsByCat(ws, cats) {
   return rows;
 }
 
+// ---------- Flux réseau (ch. 14) ----------
+// Tableau de la matrice des flux (PDF / exports)
+function flowsRows(ws) {
+  const rows = [['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']];
+  for (const f of (ws?.flows || [])) {
+    rows.push([f.name || '', f.src || '', f.dst || '', f.proto || '',
+               f.sens === 'uni' ? 'Unidirectionnel' : 'Bidirectionnel', f.usage || '']);
+  }
+  return rows;
+}
+
+// Un flux « concerne » un device si son nom apparaît dans la source ou la
+// destination (insensible à la casse) — utilisé pour la mise en évidence
+// des équipements d'un flux dans la vue Topologie.
+function flowMatchesInst(flow, inst) {
+  const hay = `${flow?.src || ''} ${flow?.dst || ''}`.toLowerCase();
+  const name = String(inst?.name || '').trim().toLowerCase();
+  return !!name && hay.includes(name);
+}
+
 // Corps commun du tableau de câblage. domain = null : tous les câbles ;
 // withDomain : ajoute la colonne « Domaine » (chapitre du dossier LLD).
 function cablingRowsBase(ws, domain = null, withDomain = false) {
@@ -4995,6 +5117,11 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
   // ---- 14. Flux réseau et diagram ----
   chapter('14', 'Flux réseau et diagram');
+  miniTitle('Matrice des flux');
+  const fr = flowsRows(ws);
+  if (fr.length > 1) drawTable(fr, [1.7, 2.3, 2.3, 1.6, 1.4, 2.7]);
+  else note('Aucun flux défini (fiche du dossier, onglet Flux).');
+  miniTitle('Diagramme de topologie');
   if (topoJpeg && topoW && topoH) {
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / topoW, availH / topoH);

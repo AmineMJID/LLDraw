@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=36">
+  <link rel="stylesheet" href="styles.css?v=37">
 </head>
 <body>
   <header class="topbar">
@@ -165,6 +165,7 @@
         <button id="topo-gen" class="tt-btn" title="Créer un noeud pour chaque device posé dans les racks">⚡ <span>Générer depuis les racks</span></button>
         <button id="topo-import-cables" class="tt-btn" title="Créer un lien pour chaque câble physique existant">🔌 <span>Importer les câbles</span></button>
         <button id="topo-new-link" class="tt-btn tt-primary" title="Relier deux noeuds par un lien logique">➕ <span>Nouveau lien</span></button>
+        <select id="topo-flow-sel" class="tt-flow-sel hidden" title="Mettre en évidence les équipements d'un flux"></select>
       </div>
 
       <!-- Message d'accueil de la vue topologie -->
@@ -336,6 +337,7 @@
         <button type="button" class="lld-tab" data-tab="rzo">🌐 Réseau</button>
         <button type="button" class="lld-tab" data-tab="sites" title="Gérer les sites du dossier (Site A, Site B…)">🏢 Sites</button>
         <button type="button" class="lld-tab" data-tab="chaps" title="Notes de configuration par chapitre (7 à 13) et zones de Switching (ch. 8)">📚 Chapitres</button>
+        <button type="button" class="lld-tab" data-tab="flux" title="Matrice des flux réseau (ch. 14)">🔄 Flux</button>
       </div>
 
       <!-- Onglet Document -->
@@ -513,6 +515,19 @@
         </label>
       </div>
 
+      <!-- Onglet Flux -->
+      <div class="lld-pane hidden" data-pane="flux">
+        <p class="lld-hint">
+          Matrice des flux réseau (chapitre 14 du dossier LLD). Indiquez la source, la
+          destination, le protocole/ports, le sens et l'usage de chaque flux — ex.
+          « LAN Site A → Internet, TCP 443, bidirectionnel, navigation web ».
+          Dans la <strong>vue Topologie</strong>, le sélecteur 🔄 met en évidence les
+          équipements mentionnés dans la source ou la destination du flux choisi.
+        </p>
+        <div class="lld-table" id="lld-flows"></div>
+        <button id="lld-add-flow" class="btn btn-ghost btn-sm">＋ Ajouter un flux</button>
+      </div>
+
       <div class="modal-actions">
         <button id="lld-cancel" class="btn btn-ghost">Annuler</button>
         <button id="lld-save" class="btn btn-primary">Enregistrer</button>
@@ -592,6 +607,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=36"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

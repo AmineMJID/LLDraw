@@ -185,6 +185,10 @@ via localStorage, en secours).
       rattache à un site via le sélecteur de son en-tête (pastille colorée,
       filtrage du board par site). Supprimer un site détache les racks qui y
       étaient rattachés ;
+    - **🔄 Flux** — **matrice des flux réseau** (ch. 14) : nom, source,
+      destination, protocole/ports, sens (bidirectionnel/unidirectionnel) et
+      usage de chaque flux ; dans la vue Topologie, le sélecteur 🔄 met en
+      évidence les équipements mentionnés dans le flux choisi ;
     - **📚 Chapitres** — **notes de configuration** de chaque chapitre 7 à 13
       (Firewall, Switching, Serveurs, Stockage, IDS, CCTV, Pointage) et
       **zones de Switching** qui découpent le chapitre 8 : par défaut INFRA,

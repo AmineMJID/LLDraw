@@ -195,12 +195,15 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
 - [x] Chapitres/zones vides : mention « Aucun équipement… » (numérotation
       stable, conforme à la décision validée)
 
-### ⬜ Lot 6 — Flux réseau (ch. 14)
-- [ ] Éditeur de **matrice de flux** : nom, source, destination,
-      protocole/ports, sens (unidirectionnel/bidirectionnel), usage
-- [ ] PDF ch. 14 : tableau des flux + rappel du diagramme de topologie
-- [ ] (Bonus) Surcouche « flux » dans la vue Topologie : mise en évidence
-      des liens concernés par un flux sélectionné
+### ✅ Lot 6 — Flux réseau (ch. 14) — **FAIT**
+- [x] Onglet **🔄 Flux** dans la modale 📘 : éditeur de **matrice de flux**
+      (nom, source, destination, protocole/ports, sens ⇄ bidirectionnel /
+      → unidirectionnel, usage) — ajout/suppression de lignes
+- [x] PDF ch. 14 : **matrice des flux** + rappel du **diagramme de
+      topologie** (note d'aide si absent)
+- [x] Bonus : sélecteur **🔄 Flux** dans la barre d'outils de la vue
+      Topologie — les équipements mentionnés dans la source/destination du
+      flux restent nets, les autres (noeuds et liens) sont atténués
 
 ### ⬜ Lot 7 — Câblage/Rack + exports & finitions (ch. 15)
 - [ ] PDF ch. 15 : tableau de câblage global + synthèse racks + élévations

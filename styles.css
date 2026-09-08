@@ -1759,6 +1759,40 @@ body.topo-linking .topo-node { cursor: crosshair; }
   color: #2563eb;
   vertical-align: 1px;
 }
+/* Sélecteur de flux dans la barre d'outils topologie */
+.tt-flow-sel {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  max-width: 220px;
+}
+/* Noeuds / liens atténués quand un flux est sélectionné */
+.topo-node.topo-dim {
+  opacity: .22;
+  filter: saturate(.4);
+}
+/* Cartes « flux » (2 lignes) */
+.lld-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .55);
+}
+.lld-flow select {
+  margin-top: 0 !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+}
+.lld-flow .lld-row:last-child { padding-right: 0; }
 /* Zones de switching : boutons de réordonnancement */
 .lld-zone-up, .lld-zone-down {
   border: none;
