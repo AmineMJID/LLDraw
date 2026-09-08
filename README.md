@@ -130,11 +130,12 @@ via localStorage, en secours).
    ou le retirer avec le bouton ✕ au survol.
    - **Fiche du device au survol** : laissez le curseur un instant sur un device posé
      (hors modes Étiquetage/Câblage) — une fiche s'affiche avec sa photo, son nom, sa
-     taille, sa **catégorie**, son étage de départ et son nombre de ports.
+     taille, sa **catégorie**, son étage de départ et son nombre de ports —
+     plus sa **zone de Switching** pour les switchs et bornes WiFi.
      **Double-cliquez sur une valeur pour la modifier** : le nom, la taille en U
      (replacé automatiquement au plus près s'il faut de la place), la catégorie
-     (liste déroulante) ou l'étage de départ (avec contrôle de collision).
-     Entrée valide, Échap annule.
+     et la zone (listes déroulantes) ou l'étage de départ (avec contrôle de
+     collision). Entrée valide, Échap annule.
 8. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
    **➕ Créer des ports** (cliquez sur la face avant d'un device pour y poser un port,
    icône RJ45) et **✏️ Modifier les ports** (cliquez sur un port existant pour changer
@@ -184,7 +185,13 @@ via localStorage, en secours).
       rattache à un site via le sélecteur de son en-tête (pastille colorée,
       filtrage du board par site). Supprimer un site détache les racks qui y
       étaient rattachés ;
-    - **📚 Chapitres** sera activé par un lot suivant.
+    - **📚 Chapitres** — **notes de configuration** de chaque chapitre 7 à 13
+      (Firewall, Switching, Serveurs, Stockage, IDS, CCTV, Pointage) et
+      **zones de Switching** qui découpent le chapitre 8 : par défaut INFRA,
+      LAN Site B, Aruba AP Site A, Aruba AP Site B, LAN Site A (ajout,
+      suppression, réordonnancement ↑↓) ; les chapitres 7 à 13 du PDF sont
+      générés automatiquement : notes, équipements par catégorie (et par
+      zone pour le Switching), ports & adressage, câblage du domaine.
     Ces informations alimentent les chapitres correspondants du document LLD
     (le ch. 2.1 affiche le tableau des sites et les racks par site, et la
     colonne **Site** apparaît dans l'inventaire, les ports et la synthèse des

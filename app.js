@@ -121,6 +121,23 @@ function normLldInfo(w) {
   }
   if (typeof L.interco.notes !== 'string') L.interco.notes = '';
   L.interco.notes = L.interco.notes.slice(0, 2000);
+  // Notes de configuration par chapitre (ch. 7 à 13)
+  if (!L.catNotes || typeof L.catNotes !== 'object') L.catNotes = {};
+  for (const k of ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage']) {
+    if (typeof L.catNotes[k] !== 'string') L.catNotes[k] = '';
+    L.catNotes[k] = L.catNotes[k].slice(0, 2000);
+  }
+  // Zones de Switching (sous-chapitres 8.1, 8.2…) — par défaut : structure cible
+  L.swZones = Array.isArray(L.swZones) ? L.swZones.filter(z => z && typeof z === 'object').map(z => ({
+    id: String(z.id || uid()),
+    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone'
+  })) : [
+    { id: uid(), name: 'INFRA' },
+    { id: uid(), name: 'LAN Site B' },
+    { id: uid(), name: 'Aruba AP Site A' },
+    { id: uid(), name: 'Aruba AP Site B' },
+    { id: uid(), name: 'LAN Site A' }
+  ];
   return L;
 }
 
@@ -227,6 +244,7 @@ function normalizeRack(r) {
   if (typeof r.siteId !== 'string') r.siteId = '';   // rattachement à un site
   r.instances = Array.isArray(r.instances) ? r.instances : [];
   r.instances.forEach(i => {
+    if (typeof i.zone !== 'string') i.zone = '';   // zone de switching (ch. 8)
     i.ports = Array.isArray(i.ports) ? i.ports : [];
     i.ports.forEach(p => {
       if (typeof p.size !== 'number') p.size = 1;
@@ -357,6 +375,11 @@ function normalizeState(s) {
       w.topology = { nodes: [], links: [] };
     pruneTopology(w);
     normLldInfo(w);
+    // Zones de switching : détacher les devices pointant vers une zone disparue
+    const zoneIds = new Set((w.lld.swZones || []).map(z => z.id));
+    w.racks.forEach(r => r.instances.forEach(i => {
+      if (i.zone && !zoneIds.has(i.zone)) i.zone = '';
+    }));
     // Les anciennes vues par défaut ne sont pas considérées comme personnalisées :
     // l'application recadrera automatiquement sur le contenu à la première ouverture.
     w.viewTouched = !!w.viewTouched;
@@ -2268,6 +2291,11 @@ function fillDevicePopover() {
   dpSet('#dp-size', inst.sizeU + 'U');
   dpSet('#dp-slot', 'U' + (inst.slot + 1));
   dpSet('#dp-cat', `${catIcon(inst.cat)} ${catLabel(inst.cat)}`);
+  // Zone de switching : uniquement pour les switchs et bornes WiFi
+  const isSwCat = ['switch', 'ap'].includes(normCat(inst.cat));
+  const zoneRow = $('#dp-zone-row');
+  if (zoneRow) zoneRow.style.display = isSwCat ? '' : 'none';
+  dpSet('#dp-zone', isSwCat ? (zoneNameOf(active(), inst) || '—') : '—');
   dpSet('#dp-brand', inst.brand || '—');
   dpSet('#dp-model', inst.model || '—');
   dpSet('#dp-ref', inst.partRef || '—');
@@ -2495,6 +2523,31 @@ dpEditSpan('#dp-cat', inst => {
   if (cat === normCat(inst.cat)) { fillDevicePopover(); return; }
   pushHistory();
   inst.cat = cat;
+  dpAfterChange(inst);
+});
+
+// Zone de switching (switch / AP) : édition par liste déroulante
+dpEditSpan('#dp-zone', inst => {
+  const s = document.createElement('select');
+  const o0 = document.createElement('option');
+  o0.value = '';
+  o0.textContent = '— hors zone —';
+  s.appendChild(o0);
+  (normLldInfo(active()).swZones || []).forEach(z => {
+    const o = document.createElement('option');
+    o.value = z.id;
+    o.textContent = z.name;
+    if (z.id === (inst.zone || '')) o.selected = true;
+    s.appendChild(o);
+  });
+  return s;
+}, val => {
+  const { inst } = dpFind();
+  if (!inst) return;
+  const zone = String(val || '');
+  if (zone === (inst.zone || '')) { fillDevicePopover(); return; }
+  pushHistory();
+  inst.zone = zone;
   dpAfterChange(inst);
 });
 
@@ -3140,6 +3193,12 @@ const LLD_IC_FIELDS = [
   ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
   ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes']
 ];
+// Notes de configuration par chapitre (clé = domaine du chapitre)
+const LLD_NOTE_FIELDS = [
+  ['firewall', '#lld-note-firewall'], ['switching', '#lld-note-switching'],
+  ['server', '#lld-note-server'], ['storage', '#lld-note-storage'],
+  ['ids', '#lld-note-ids'], ['cctv', '#lld-note-cctv'], ['pointage', '#lld-note-pointage']
+];
 
 // Types devinés à partir des préfixes les plus courants (bouton « Générer »)
 const NOMEN_GUESS = {
@@ -3212,6 +3271,37 @@ function lldSitesFrom(container) {
   });
 }
 
+// ---- Lignes « zone de switching » (nom + réordonnancement) ----
+function lldAddZoneRow(container, zone = {}) {
+  const row = document.createElement('div');
+  row.className = 'lld-row lld-zone-row';
+  row.dataset.id = zone.id || '';
+  row.innerHTML = `
+    <button type="button" class="lld-zone-up" title="Monter cette zone">↑</button>
+    <button type="button" class="lld-zone-down" title="Descendre cette zone">↓</button>
+    <input type="text" data-k="name" placeholder="Nom de la zone (ex : LAN Site A)" maxlength="40" class="lld-flex">
+    <button type="button" class="lld-row-del" title="Supprimer cette zone">✕</button>`;
+  const nameInp = row.querySelector('input');
+  nameInp.value = zone.name || '';
+  row.querySelector('.lld-zone-up').addEventListener('click', () => {
+    const prev = row.previousElementSibling;
+    if (prev && prev.classList.contains('lld-zone-row')) container.insertBefore(row, prev);
+  });
+  row.querySelector('.lld-zone-down').addEventListener('click', () => {
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('lld-zone-row')) container.insertBefore(next, row);
+  });
+  row.querySelector('.lld-row-del').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function lldZonesFrom(container) {
+  return [...container.querySelectorAll('.lld-zone-row')].map(r => ({
+    id: r.dataset.id || '',
+    name: r.querySelector('input').value
+  }));
+}
+
 // ---- Onglets de la modale ----
 document.querySelectorAll('#lld-modal .lld-tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -3246,6 +3336,10 @@ function openLldModal() {
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
   LLD_FAI_FIELDS.forEach(([k, sel]) => { $(sel).value = L.fai[k] || ''; });
   LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
+  const zonesEl = $('#lld-zones');
+  zonesEl.innerHTML = '';
+  L.swZones.forEach(z => lldAddZoneRow(zonesEl, z));
+  LLD_NOTE_FIELDS.forEach(([k, sel]) => { $(sel).value = L.catNotes[k] || ''; });
   const sitesEl = $('#lld-sites');
   sitesEl.innerHTML = '';
   normSites(ws).forEach(s => lldAddSiteRow(sitesEl, s));
@@ -3274,6 +3368,11 @@ $('#lld-add-site').addEventListener('click', () => {
   lldAddSiteRow($('#lld-sites'), {});
   const cards = $('#lld-sites').querySelectorAll('.lld-site');
   cards[cards.length - 1].querySelector('input').focus();
+});
+$('#lld-add-zone').addEventListener('click', () => {
+  lldAddZoneRow($('#lld-zones'), {});
+  const rows = $('#lld-zones').querySelectorAll('.lld-zone-row');
+  rows[rows.length - 1].querySelector('input').focus();
 });
 
 // Détecte les préfixes utilisés par les devices et câbles du workspace
@@ -3343,6 +3442,21 @@ $('#lld-save').addEventListener('click', () => {
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
   LLD_FAI_FIELDS.forEach(([k, sel]) => { L.fai[k] = $(sel).value.slice(0, 2000); });
   LLD_IC_FIELDS.forEach(([k, sel]) => { L.interco[k] = $(sel).value.slice(0, 2000); });
+  LLD_NOTE_FIELDS.forEach(([k, sel]) => { L.catNotes[k] = $(sel).value.slice(0, 2000); });
+
+  // Zones de switching (ch. 8) : on reserialize la liste
+  const prevZoneIds = new Set(L.swZones.map(z => z.id));
+  L.swZones = lldZonesFrom($('#lld-zones'))
+    .filter(z => z.name.trim())
+    .map(z => ({ id: z.id && prevZoneIds.has(z.id) ? z.id : uid(), name: z.name.trim().slice(0, 40) }));
+  const zoneIds = new Set(L.swZones.map(z => z.id));
+  let dezoned = 0;
+  ws.racks.forEach(r => r.instances.forEach(i => {
+    if (i.zone && !zoneIds.has(i.zone)) { i.zone = ''; dezoned++; }
+  }));
+  if (dezoned) {
+    alert(`${dezoned} device(s) switching étaient rattaché(s) à une zone supprimée :\nils sont maintenant « hors zone ».`);
+  }
 
   // Sites : on reserialize la liste (les nouveaux reçoivent un id généré)
   const prevIds = new Set(ws.sites.map(s => s.id));
@@ -4241,6 +4355,39 @@ function catSummaryRows(ws) {
   return rows;
 }
 
+// Nom de la zone de switching d'un device posé (ch. 8)
+function zoneNameOf(ws, inst) {
+  const z = (ws?.lld?.swZones || []).find(x => x.id === (inst?.zone || ''));
+  return z ? z.name : '';
+}
+
+// Équipements d'un chapitre : filtrés par catégories (et par zone de switching).
+// zoneId = null -> toutes les zones ; '' -> hors zone ; sinon id de zone.
+function catEquipRows(ws, cats, zoneId = null) {
+  const rows = [['Rack', 'Site', 'Étage', 'Nom', 'Marque', 'Modèle', 'IP mgmt', 'VLAN(s)', 'Ports']];
+  for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
+    if (!cats.includes(normCat(inst.cat))) continue;
+    if (zoneId !== null && (inst.zone || '') !== zoneId) continue;
+    rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name,
+               inst.brand || '', inst.model || '', inst.ipMgmt || '', inst.vlan || '',
+               (inst.ports || []).length]);
+  }
+  return rows;
+}
+
+// Ports & adressage des équipements d'un chapitre
+function portsRowsByCat(ws, cats) {
+  const rows = [['Rack', 'Site', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN']];
+  for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
+    if (!cats.includes(normCat(inst.cat))) continue;
+    for (const p of (inst.ports || [])) {
+      rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name, p.name,
+                 p.label || '', p.ip || '', p.vlan || '']);
+    }
+  }
+  return rows;
+}
+
 // Corps commun du tableau de câblage. domain = null : tous les câbles ;
 // withDomain : ajoute la colonne « Domaine » (chapitre du dossier LLD).
 function cablingRowsBase(ws, domain = null, withDomain = false) {
@@ -4800,32 +4947,51 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
   else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
 
-  // ---- 7 à 13 : chapitres par domaine (alimentés par les lots à venir) ----
-  chapter('7', 'Conception et Configuration Firewall', { flow: true });
-  placeholder();
-
-  chapter('8', 'Conception et Configuration Switching', { flow: true });
-  sub('8.1', 'Switching (INFRA)');
-  placeholder();
-  sub('8.2', 'Switching (LAN Site B)');
-  placeholder();
-  sub('8.3', 'Switching (Aruba AP Site A)');
-  placeholder();
-  sub('8.4', 'Switching (Aruba AP Site B)');
-  placeholder();
-  sub('8.5', 'Switching (LAN Site A)');
-  placeholder();
-
-  chapter('9', 'Conception et Configuration Serveurs', { flow: true });
-  placeholder();
-  chapter('10', 'Conception et Configuration Stockage', { flow: true });
-  placeholder();
-  chapter('11', 'Conception et Configuration Intrusion (IDS)', { flow: true });
-  placeholder();
-  chapter('12', 'Conception et Configuration CCTV', { flow: true });
-  placeholder();
-  chapter('13', 'Conception et Configuration Pointage (SPO)', { flow: true });
-  placeholder();
+  // ---- 7 à 13 : chapitres par domaine (générés depuis les catégories) ----
+  const CAT_CHAPTERS = [
+    ['7',  'Conception et Configuration Firewall',        ['firewall'],          'firewall'],
+    ['8',  'Conception et Configuration Switching',       ['switch', 'ap'],      'switching'],
+    ['9',  'Conception et Configuration Serveurs',        ['server'],            'server'],
+    ['10', 'Conception et Configuration Stockage',        ['storage'],           'storage'],
+    ['11', 'Conception et Configuration Intrusion (IDS)', ['ids'],               'ids'],
+    ['12', 'Conception et Configuration CCTV',            ['cctv'],              'cctv'],
+    ['13', 'Conception et Configuration Pointage (SPO)',  ['pointage'],          'pointage']
+  ];
+  for (const [num, title, cats, dom] of CAT_CHAPTERS) {
+    chapter(num, title, { flow: true });
+    const notes = L.catNotes[dom] || '';
+    if (notes.trim()) { miniTitle('Notes de configuration'); paragraph(notes); }
+    if (dom === 'switching' && (L.swZones || []).length) {
+      // Sous-chapitres par zone de switching (8.1, 8.2… dans l'ordre des zones)
+      let zi = 0;
+      for (const z of L.swZones) {
+        zi++;
+        sub(`${num}.${zi}`, `Switching (${z.name})`);
+        const zr = catEquipRows(ws, cats, z.id);
+        if (zr.length > 1) drawTable(zr, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
+        else note('Aucun équipement dans cette zone.');
+      }
+      const unz = catEquipRows(ws, cats, '');
+      if (unz.length > 1) {
+        zi++;
+        sub(`${num}.${zi}`, 'Switching (hors zone)');
+        drawTable(unz, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
+      }
+    } else {
+      miniTitle('Équipements');
+      const er = catEquipRows(ws, cats);
+      if (er.length > 1) drawTable(er, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
+      else note('Aucun équipement de cette catégorie dans ce workspace.');
+    }
+    miniTitle('Ports & adressage');
+    const por = portsRowsByCat(ws, cats);
+    if (por.length > 1) drawTable(por, [1.4, 0.9, 0.8, 1.8, 1.4, 1.6, 1.6, 0.9]);
+    else note('Aucun port étiqueté sur ces équipements.');
+    miniTitle('Câblage');
+    const cabD = cablingRowsByDomain(ws, dom);
+    if (cabD.length > 1) drawTable(cabD, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+    else note('Aucun câble classé dans ce domaine (mode Câblage : domaine du câble).');
+  }
 
   // ---- 14. Flux réseau et diagram ----
   chapter('14', 'Flux réseau et diagram');

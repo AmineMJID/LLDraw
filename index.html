@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=35">
+  <link rel="stylesheet" href="styles.css?v=36">
 </head>
 <body>
   <header class="topbar">
@@ -282,6 +282,7 @@
           <div class="dp-row"><span class="dp-lbl">Taille</span><span class="dp-val editable" id="dp-size">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Départ</span><span class="dp-val editable" id="dp-slot">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Catégorie</span><span class="dp-val editable" id="dp-cat">—</span></div>
+          <div class="dp-row" id="dp-zone-row" style="display:none"><span class="dp-lbl">Zone</span><span class="dp-val editable" id="dp-zone">—</span></div>
           <div class="dp-sec">Matériel</div>
           <div class="dp-row"><span class="dp-lbl">Marque</span><span class="dp-val editable" id="dp-brand">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Modèle</span><span class="dp-val editable" id="dp-model">—</span></div>
@@ -334,7 +335,7 @@
         <button type="button" class="lld-tab active" data-tab="doc">📄 Document</button>
         <button type="button" class="lld-tab" data-tab="rzo">🌐 Réseau</button>
         <button type="button" class="lld-tab" data-tab="sites" title="Gérer les sites du dossier (Site A, Site B…)">🏢 Sites</button>
-        <button type="button" class="lld-tab" data-tab="chaps" disabled title="Notes de configuration par chapitre — à venir (lot 5)">📚 Chapitres</button>
+        <button type="button" class="lld-tab" data-tab="chaps" title="Notes de configuration par chapitre (7 à 13) et zones de Switching (ch. 8)">📚 Chapitres</button>
       </div>
 
       <!-- Onglet Document -->
@@ -475,6 +476,43 @@
         <button id="lld-add-site" class="btn btn-ghost btn-sm">＋ Ajouter un site</button>
       </div>
 
+      <!-- Onglet Chapitres -->
+      <div class="lld-pane hidden" data-pane="chaps">
+        <p class="lld-hint">
+          Notes de configuration reprises dans les chapitres 7 à 13 du dossier LLD.
+          Les <strong>zones de Switching</strong> découpent le chapitre 8 (8.1, 8.2…) :
+          rattachez chaque switch / borne WiFi à sa zone depuis sa fiche de survol
+          (double-clic sur la ligne « Zone »).
+        </p>
+
+        <div class="d-inv-title">Zones de Switching (ch. 8)</div>
+        <div class="lld-table" id="lld-zones"></div>
+        <button id="lld-add-zone" class="btn btn-ghost btn-sm">＋ Ajouter une zone</button>
+
+        <div class="d-inv-title" style="margin-top:14px">Notes de configuration par chapitre</div>
+        <label>7. Firewall
+          <textarea id="lld-note-firewall" rows="3" maxlength="2000" placeholder="Ex : policies, NAT, VLANs, haute disponibilité…"></textarea>
+        </label>
+        <label>8. Switching
+          <textarea id="lld-note-switching" rows="3" maxlength="2000" placeholder="Ex : VLANs, trunks, spanning-tree, PoE…"></textarea>
+        </label>
+        <label>9. Serveurs
+          <textarea id="lld-note-server" rows="3" maxlength="2000" placeholder="Ex : hyperviseur, adresses IP, rôles…"></textarea>
+        </label>
+        <label>10. Stockage
+          <textarea id="lld-note-storage" rows="3" maxlength="2000" placeholder="Ex : RAID, iSCSI, capacités…"></textarea>
+        </label>
+        <label>11. Intrusion (IDS)
+          <textarea id="lld-note-ids" rows="3" maxlength="2000" placeholder="Ex : mode détection, sondes, emplacement…"></textarea>
+        </label>
+        <label>12. CCTV
+          <textarea id="lld-note-cctv" rows="3" maxlength="2000" placeholder="Ex : flux caméras, NVR, VLAN dédié…"></textarea>
+        </label>
+        <label>13. Pointage (SPO)
+          <textarea id="lld-note-pointage" rows="3" maxlength="2000" placeholder="Ex : badges, terminaux, serveur SPO…"></textarea>
+        </label>
+      </div>
+
       <div class="modal-actions">
         <button id="lld-cancel" class="btn btn-ghost">Annuler</button>
         <button id="lld-save" class="btn btn-primary">Enregistrer</button>
@@ -554,6 +592,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

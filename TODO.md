@@ -179,16 +179,21 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
       configuration ; **ch. 5.2 / 6.2** : table de câblage filtrée sur le
       domaine correspondant (avec note d'aide si vide)
 
-### ⬜ Lot 5 — Chapitres par catégorie (ch. 7 → 13)
-- [ ] Notes de configuration éditables **par catégorie** (onglet Chapitres)
-- [ ] Sous-chapitres **Switching par zone/site** : zones personnalisables
-      (valeurs par défaut reproduisant la cible : INFRA, LAN Site A, LAN Site B,
-      Aruba AP Site A, Aruba AP Site B) — rattachement des devices
-      Switch/AP à une zone
-- [ ] Génération automatique des chapitres 7→13 : pour chaque catégorie
-      présente → tableau des équipements (rack, site, modèle, IP mgmt, VLAN,
-      ports) + ports/IP + câblage concerné + notes de config
-- [ ] Chapitres vides : soit masqués, soit « aucun équipement » (option)
+### ✅ Lot 5 — Chapitres par catégorie (ch. 7 → 13) — **FAIT**
+- [x] Onglet **📚 Chapitres** activé : **notes de configuration** par chapitre
+      (7 Firewall, 8 Switching, 9 Serveurs, 10 Stockage, 11 IDS, 12 CCTV,
+      13 Pointage)
+- [x] **Zones de Switching** personnalisables (ajout / suppression /
+      réordonnancement ↑↓) — par défaut, la structure cible exacte :
+      8.1 INFRA, 8.2 LAN Site B, 8.3 Aruba AP Site A, 8.4 Aruba AP Site B,
+      8.5 LAN Site A ; rattachement des switchs/bornes à une zone via la
+      fiche de survol (double-clic sur « Zone ») ; suppression d'une zone =
+      devices « hors zone » (+ sous-chapitre « hors zone » s'il y en a)
+- [x] **Chapitres 7→13 générés automatiquement** : notes + tableau des
+      équipements (rack, site, étage, marque/modèle, IP mgmt, VLAN, ports) +
+      ports & adressage + câblage du domaine (domains des câbles du lot 4)
+- [x] Chapitres/zones vides : mention « Aucun équipement… » (numérotation
+      stable, conforme à la décision validée)
 
 ### ⬜ Lot 6 — Flux réseau (ch. 14)
 - [ ] Éditeur de **matrice de flux** : nom, source, destination,
