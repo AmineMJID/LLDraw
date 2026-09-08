@@ -95,20 +95,28 @@ via localStorage, en secours).
    - **Classeur Excel (.xlsx)** — un vrai fichier Excel (écrit sans dépendance)
      avec 4 feuilles : *Inventaire*, *Câblage*, *Ports* et *Racks* (en-têtes
      stylés, largeurs automatiques, première ligne figée) ;
-   - **Inventaire (CSV)** — tableau de tous les devices posés (rack, étage,
-     taille, marque, modèle, référence, n° série, IP mgmt, VLAN, puissance,
-     poids, nombre de ports) ;
+   - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
+     étage, taille, nom, catégorie, marque, modèle, référence, n° série,
+     IP mgmt, VLAN, puissance, poids, nombre de ports) ;
    - **Câblage (CSV)** — tableau des cordons (ID, couleur, extrémités A/B :
      rack, device, port, étiquette) ;
    - **Ports & étiquettes (CSV)** — tous les ports avec rack, étage, device,
      nom du port, étiquette, IP, VLAN et câble connecté.
    Les CSV sont au format Excel français (séparateur `;`, UTF-8 BOM).
 6. **Créer un device** : cliquez sur **＋ Créer un device**, donnez-lui un nom,
-   une taille (1U, 2U…) et importez la **photo 2D de la face avant**.
+   une taille (1U, 2U…), une **catégorie** (Routeur/FAI, Firewall, Switch,
+   Borne WiFi, Serveur, Stockage, IDS, CCTV, Pointage, Onduleur, Brassage,
+   Autre) et importez la **photo 2D de la face avant**. Laissée sur « Autre »,
+   la catégorie est **devinée depuis le préfixe du nom** (`FW-01` → Firewall,
+   `SW-CORE-01` → Switch, `SRV-…` → Serveur…) ; les anciens devices sont
+   migrés de la même façon à l'ouverture.
    Une **fiche d'inventaire** optionnelle complète le modèle : marque, modèle,
    référence constructeur, n° série, IP management, VLAN(s), puissance (W) et
    poids (kg). Ces champs sont recopiés sur chaque exemplaire posé dans un rack
    (et restent modifiables individuellement depuis la fiche de survol).
+   La **bibliothèque** affiche la catégorie de chaque modèle (icône) et peut
+   être **filtrée par catégorie** ; le device WatchGuard permanent est
+   pré-classé « Firewall ».
    - **Détection automatique des ports** : dès l'import de la photo, l'application
      analyse l'image et repère les connecteurs (RJ45, SFP…) — ports noirs sur
      panneau clair, clairs sur panneau sombre, etc. Les ports trouvés sont
@@ -122,9 +130,10 @@ via localStorage, en secours).
    ou le retirer avec le bouton ✕ au survol.
    - **Fiche du device au survol** : laissez le curseur un instant sur un device posé
      (hors modes Étiquetage/Câblage) — une fiche s'affiche avec sa photo, son nom, sa
-     taille, son étage de départ et son nombre de ports. **Double-cliquez sur une
-     valeur pour la modifier** : le nom, la taille en U (replacé automatiquement au
-     plus près s'il faut de la place) ou l'étage de départ (avec contrôle de collision).
+     taille, sa **catégorie**, son étage de départ et son nombre de ports.
+     **Double-cliquez sur une valeur pour la modifier** : le nom, la taille en U
+     (replacé automatiquement au plus près s'il faut de la place), la catégorie
+     (liste déroulante) ou l'étage de départ (avec contrôle de collision).
      Entrée valide, Échap annule.
 8. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
    **➕ Créer des ports** (cliquez sur la face avant d'un device pour y poser un port,
@@ -145,8 +154,8 @@ via localStorage, en secours).
     leur édition.
 11. **Vue Topologie (diagramme logique)** : le sélecteur **📐 Élévations /
     🕸️ Topologie** de la barre du haut bascule le board en diagramme réseau.
-    **⚡ Générer depuis les racks** crée un noeud par device posé (nom, marque/
-    modèle, rack · étage, IP mgmt) ; **🔌 Importer les câbles** crée un lien par
+    **⚡ Générer depuis les racks** crée un noeud par device posé (nom avec
+    icône de catégorie, marque/modèle, rack · étage, IP mgmt) ; **🔌 Importer les câbles** crée un lien par
     câble physique ; **➕ Nouveau lien** relie deux noeuds cliqués l'un après
     l'autre. Un lien (nom, débit, VLAN, style, couleur) se modifie en cliquant
     dessus ; les noeuds se déplacent à la souris ; **double-clic sur un noeud**

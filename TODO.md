@@ -146,16 +146,22 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
 - [x] Correctif rétroactif Lot 1 : la sauvegarde de la modale 📘 ne persistait
       pas Objectif / Existant / Architecture / Nomenclature — corrigé
 
-### ⬜ Lot 3 — Catégories de devices (prépare ch. 3.1, 7→13)
-- [ ] Champ **Catégorie** sur les devices (bibliothèque + exemplaires) :
-      Routeur/FAI, Firewall, Switch, AP WiFi, Serveur, Stockage, IDS, CCTV,
-      Pointage (SPO), Onduleur, Panneau de brassage, Autre
-- [ ] UI : sélecteur dans la modale device, badge dans les cartes
-      bibliothèque, badge dans la fiche popover, filtre par catégorie dans
-      la sidebar
-- [ ] Catégorie visible sur les nœuds de la topologie
-- [ ] PDF ch. 3.1 « Équipements » : tableau récapitulatif par catégorie
-      (nb, modèles, sites) + inventaire complet
+### ✅ Lot 3 — Catégories de devices (prépare ch. 3.1, 7→13) — **FAIT**
+- [x] Champ **Catégorie** sur les devices (modèle + exemplaires posés) :
+      Routeur/FAI, Firewall, Switch, Borne WiFi (AP), Serveur, Stockage,
+      Intrusion (IDS/IPS), CCTV, Pointage (SPO), Onduleur/PDU, Brassage, Autre
+- [x] Sélecteur dans la modale device + **catégorie devinée depuis le
+      préfixe du nom** (FW→Firewall, SW→Switch, SRV→Serveur, NAS→Stockage,
+      NVR/CAM→CCTV, SPO→Pointage…) à la création ET pour les anciens devices
+      (migration automatique) ; WatchGuard pré-classé « Firewall »
+- [x] Badge **icône + libellé** sur les cartes de la bibliothèque +
+      **filtre par catégorie** dans la sidebar
+- [x] Ligne **Catégorie** éditable (liste déroulante) dans la fiche popover
+      du device posé
+- [x] **Icône de catégorie** sur les nœuds de la vue Topologie
+- [x] Colonne **Catégorie** dans l'inventaire (CSV / XLSX / PDF)
+- [x] PDF ch. 3.1 : **récapitulatif par catégorie** (nombre, modèles,
+      sites) + inventaire détaillé
 
 ### ⬜ Lot 4 — FAI & Interconnexion site 2 site (ch. 5, 6)
 - [ ] Onglet Réseau (modale 📘) — bloc **FAI** : opérateur, offre, type de

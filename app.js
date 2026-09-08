@@ -24,6 +24,7 @@ function ensureWatchGuard() {
       sizeU: 1,
       photo: null,
       permanent: true,
+      cat: 'firewall',
       brand: 'WatchGuard',
       model: 'Firebox',
       partRef: '',
@@ -120,12 +121,67 @@ function fmtWatts(w) {
     : Math.round(w) + ' W';
 }
 
+// ---------- Catégories de devices ----------
+// Chaque device (modèle de la bibliothèque ET exemplaire posé) porte une
+// catégorie métier : elle structure le dossier LLD (ch. 3.1 Équipements et
+// futurs chapitres 7 à 13) et permet de filtrer la bibliothèque.
+const DEV_CATEGORIES = [
+  ['router',   '\ud83c\udf10', 'Routeur / FAI'],
+  ['firewall', '\ud83d\udee1\ufe0f', 'Firewall'],
+  ['switch',   '\ud83d\udd00', 'Switch'],
+  ['ap',       '\ud83d\udcf6', 'Borne WiFi (AP)'],
+  ['server',   '\ud83d\udda5\ufe0f', 'Serveur'],
+  ['storage',  '\ud83d\udcbe', 'Stockage'],
+  ['ids',      '\ud83d\udea8', 'Intrusion (IDS/IPS)'],
+  ['cctv',     '\ud83d\udcf9', 'CCTV'],
+  ['pointage', '\u23f1\ufe0f', 'Pointage (SPO)'],
+  ['ups',      '\ud83d\udd0b', 'Onduleur / PDU'],
+  ['patch',    '\ud83d\udd0c', 'Brassage (panneau)'],
+  ['other',    '\ud83d\udce6', 'Autre']
+];
+const DEV_CAT_MAP = Object.fromEntries(DEV_CATEGORIES.map(([id, ico, lbl]) => [id, { ico, lbl }]));
+
+function normCat(cat) {
+  return (typeof cat === 'string' && DEV_CAT_MAP[cat]) ? cat : 'other';
+}
+function catLabel(cat) { return DEV_CAT_MAP[cat]?.lbl || 'Autre'; }
+function catIcon(cat)  { return DEV_CAT_MAP[cat]?.ico || '\ud83d\udce6'; }
+
+// Catégorie devinée depuis le préfixe du nom (ex : « FW-01 » -> firewall)
+const CAT_BY_PREFIX = {
+  FW: 'firewall', FWS: 'firewall', ASA: 'firewall', FGT: 'firewall', VPN: 'firewall',
+  RTR: 'router', RT: 'router', GW: 'router', CPE: 'router', ISP: 'router',
+  SW: 'switch',
+  AP: 'ap', WAP: 'ap',
+  SRV: 'server', ESX: 'server', HV: 'server',
+  NAS: 'storage', SAN: 'storage', STO: 'storage',
+  IDS: 'ids', IPS: 'ids',
+  CAM: 'cctv', NVR: 'cctv', DVR: 'cctv', CCTV: 'cctv',
+  SPO: 'pointage', PTG: 'pointage', PTA: 'pointage',
+  UPS: 'ups', PDU: 'ups',
+  ODF: 'patch', IDF: 'patch'
+};
+function guessCatFromName(name) {
+  const m = String(name || '').match(/^([A-Za-z]{2,4})-/);
+  if (!m) return null;
+  return CAT_BY_PREFIX[m[1].toUpperCase()] || null;
+}
+
+// Normalise la catégorie d'un device/instance (rétro-compatibilité :
+// les anciens objets reçoivent une catégorie devinée, sinon « Autre »)
+function normCatField(d) {
+  if (typeof d.cat === 'string' && DEV_CAT_MAP[d.cat]) return;
+  d.cat = guessCatFromName(d.name)
+       || (/watchguard|firebox/i.test(String(d.name || '')) ? 'firewall' : 'other');
+}
+
 // Champs d'inventaire d'un device (présents sur le modèle ET sur chaque exemplaire)
 const DEV_TEXT_FIELDS = ['brand', 'model', 'partRef', 'serial', 'ipMgmt', 'vlan'];
 function normInvFields(d) {
   for (const k of DEV_TEXT_FIELDS) if (typeof d[k] !== 'string') d[k] = '';
   d.watts = Number.isFinite(d.watts) ? d.watts : 0;
   d.weightKg = Number.isFinite(d.weightKg) ? d.weightKg : 0;
+  normCatField(d);
   return d;
 }
 
@@ -209,6 +265,7 @@ let dragPayload = null;
 let popoverCtx = null;
 let suppressPortClick = false;   // true juste après un glisser-déposer de port
 let siteFilter = 'all';          // id du site filtré sur le board, 'all' = tous
+let palCatFilter = 'all';        // filtre de la bibliothèque par catégorie
 
 // Vue du board (décalage + échelle) — mémorisée par workspace
 const view = { x: 80, y: 50, scale: 1 };
@@ -679,6 +736,19 @@ $('#z-reset').addEventListener('click', () => {
    PANNEAU LATÉRAL — palette & devices
    ============================================================ */
 
+// Options des sélecteurs de catégorie (bibliothèque + modale device)
+(function fillCatSelects() {
+  const f = $('#pal-cat-filter');
+  if (f) f.innerHTML = '<option value="all">Toutes les catégories</option>' +
+    DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
+  const d = $('#d-cat');
+  if (d) d.innerHTML = DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
+})();
+$('#pal-cat-filter').addEventListener('change', e => {
+  palCatFilter = e.target.value;
+  renderPalette();
+});
+
 function renderPalette() {
   const list = $('#device-list');
   list.innerHTML = '';
@@ -686,7 +756,19 @@ function renderPalette() {
   // S'assurer que le WatchGuard permanent existe toujours
   ensureWatchGuard();
 
-  state.devices.forEach(d => {
+  // Filtre par catégorie ('all' = toutes)
+  const shown = palCatFilter === 'all'
+    ? state.devices
+    : state.devices.filter(d => normCat(d.cat) === palCatFilter);
+
+  if (!shown.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = 'Aucun device dans cette catégorie.';
+    list.appendChild(empty);
+  }
+
+  shown.forEach(d => {
     const card = document.createElement('div');
     card.className = 'pal-card device-card';
     card.draggable = true;
@@ -699,7 +781,7 @@ function renderPalette() {
       </div>
       <div class="pal-meta">
         <strong>${escapeHtml(d.name)}</strong>
-        <small>${d.sizeU}U</small>
+        <small>${d.sizeU}U · ${catIcon(d.cat)} ${escapeHtml(catLabel(d.cat))}</small>
       </div>
       <div class="pal-actions">
         <button class="mini-edit" title="Modifier ce device">✏️</button>
@@ -1093,6 +1175,7 @@ function renderRack(rack) {
           name: tpl.name,
           sizeU: tpl.sizeU,
           photo: tpl.photo,
+          cat: normCat(tpl.cat),
           slot,
           brand: tpl.brand || '',
           model: tpl.model || '',
@@ -1879,6 +1962,7 @@ $('#btn-new-device').addEventListener('click', () => {
   $('#d-save').textContent = 'Créer le device';
   $('#d-name').value = '';
   $('#d-size').value = '1';
+  $('#d-cat').value = 'other';
   D_INV_IDS.forEach(id => { $(id).value = ''; });
   $('#d-watts').value = '';
   $('#d-kg').value = '';
@@ -1900,6 +1984,7 @@ function openEditDeviceModal(device) {
   $('#d-save').textContent = 'Enregistrer les modifications';
   $('#d-name').value = device.name;
   $('#d-size').value = String(device.sizeU);
+  $('#d-cat').value = normCat(device.cat);
   $('#d-brand').value = device.brand || '';
   $('#d-model').value = device.model || '';
   $('#d-ref').value = device.partRef || '';
@@ -2018,6 +2103,7 @@ $('#d-save').addEventListener('click', () => {
   const sizeU = parseInt($('#d-size').value, 10) || 1;
   const usePorts = $('#d-ports-use').checked && modalPorts.length > 0;
   const inv = {
+    cat: normCat($('#d-cat').value),
     brand: $('#d-brand').value.trim().slice(0, 40),
     model: $('#d-model').value.trim().slice(0, 60),
     partRef: $('#d-ref').value.trim().slice(0, 60),
@@ -2047,7 +2133,9 @@ $('#d-save').addEventListener('click', () => {
       }
     }
   } else {
-    // Mode création : ajouter un nouveau device
+    // Mode création : ajouter un nouveau device.
+    // Si la catégorie « Autre » est restée par défaut, on la devine depuis le nom.
+    if (inv.cat === 'other') inv.cat = guessCatFromName(name) || 'other';
     state.devices.push({
       id: uid(), name, sizeU, photo: modalPhoto, ...inv,
       ports: usePorts ? modalPorts.map((p, i) => ({
@@ -2141,6 +2229,7 @@ function fillDevicePopover() {
   dpSet('#dp-name', inst.name);
   dpSet('#dp-size', inst.sizeU + 'U');
   dpSet('#dp-slot', 'U' + (inst.slot + 1));
+  dpSet('#dp-cat', `${catIcon(inst.cat)} ${catLabel(inst.cat)}`);
   dpSet('#dp-brand', inst.brand || '—');
   dpSet('#dp-model', inst.model || '—');
   dpSet('#dp-ref', inst.partRef || '—');
@@ -2350,6 +2439,27 @@ function dpTextField(sel, field, maxLen) {
     dpAfterChange(inst);
   });
 }
+// Catégorie : édition par liste déroulante
+dpEditSpan('#dp-cat', inst => {
+  const s = document.createElement('select');
+  DEV_CATEGORIES.forEach(([id, ico, lbl]) => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = `${ico} ${lbl}`;
+    if (id === normCat(inst.cat)) o.selected = true;
+    s.appendChild(o);
+  });
+  return s;
+}, val => {
+  const { inst } = dpFind();
+  if (!inst) return;
+  const cat = normCat(val);
+  if (cat === normCat(inst.cat)) { fillDevicePopover(); return; }
+  pushHistory();
+  inst.cat = cat;
+  dpAfterChange(inst);
+});
+
 dpTextField('#dp-brand', 'brand', 40);
 dpTextField('#dp-model', 'model', 60);
 dpTextField('#dp-ref', 'partRef', 60);
@@ -3370,7 +3480,7 @@ function renderTopology(ws) {
     el.style.left = n.x + 'px';
     el.style.top = n.y + 'px';
     el.innerHTML = `
-      <div class="tn-head"><span class="tn-led"></span><span class="tn-name">${escapeHtml(inst?.name || '?')}</span></div>
+      <div class="tn-head"><span class="tn-led"></span><span class="tn-name">${catIcon(inst?.cat)} ${escapeHtml(inst?.name || '?')}</span></div>
       <div class="tn-sub">${escapeHtml([inst?.brand, inst?.model].filter(Boolean).join(' ') || '—')}</div>
       <div class="tn-sub2">${escapeHtml(info ? `${info.rack.name} · U${inst.slot + 1}` : '')}${inst?.ipMgmt ? ' · ' + escapeHtml(inst.ipMgmt) : ''}</div>`;
 
@@ -4036,16 +4146,37 @@ function sortedRacks(ws) {
 }
 
 function invRows(ws) {
-  const rows = [['Rack', 'Site', 'Étage', 'Taille', 'Nom', 'Marque', 'Modèle', 'Référence',
+  const rows = [['Rack', 'Site', 'Étage', 'Taille', 'Nom', 'Catégorie', 'Marque', 'Modèle', 'Référence',
                  'N° série', 'IP mgmt', 'VLAN(s)', 'Puissance (W)', 'Poids (kg)', 'Ports']];
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
     rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.sizeU + 'U', inst.name,
+               catLabel(inst.cat),
                inst.brand || '', inst.model || '', inst.partRef || '', inst.serial || '',
                inst.ipMgmt || '', inst.vlan || '',
                inst.watts || '', inst.weightKg || '', (inst.ports || []).length]);
   }
   return rows;
 }
+// Récapitulatif des équipements par catégorie (ch. 3.1 du PDF)
+function catSummaryRows(ws) {
+  const rows = [['Catégorie', 'Nb', 'Modèles', 'Sites']];
+  const byCat = new Map();
+  for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
+    const c = normCat(inst.cat);
+    if (!byCat.has(c)) byCat.set(c, []);
+    byCat.get(c).push({ rack, inst });
+  }
+  const order = Object.fromEntries(DEV_CATEGORIES.map(([id], i) => [id, i]));
+  [...byCat.keys()].sort((a, b) => order[a] - order[b]).forEach(c => {
+    const items = byCat.get(c);
+    const models = [...new Set(items.map(x => [x.inst.brand, x.inst.model].filter(Boolean).join(' ')).filter(Boolean))];
+    const sites = [...new Set(items.map(x => siteName(ws, x.rack)).filter(Boolean))];
+    rows.push([`${catIcon(c)} ${catLabel(c)}`, items.length,
+               models.join(', ') || '\u2014', sites.join(', ') || '\u2014']);
+  });
+  return rows;
+}
+
 function cablingRows(ws) {
   const rows = [['ID câble', 'Couleur',
                  'Rack A', 'Device A', 'Port A', 'Étiquette A',
@@ -4528,8 +4659,13 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   if (L.architecture.trim()) paragraph(L.architecture);
   else placeholder();
   sub('3.1', 'Équipements');
+  miniTitle('Récapitulatif par catégorie');
+  const csr = catSummaryRows(ws);
+  if (csr.length > 1) drawTable(csr, [2.4, 0.6, 3.6, 2.4], 8);
+  else note('Aucun équipement placé dans les racks de ce workspace.');
+  miniTitle('Inventaire détaillé');
   const ir = invRows(ws);
-  if (ir.length > 1) drawTable(ir, [1.5, 1, 0.8, 0.7, 1.9, 1.4, 1.9, 1.6, 1.4, 1.2, 1, 0.85, 0.8, 0.7]);
+  if (ir.length > 1) drawTable(ir, [1.3, 0.85, 0.6, 0.6, 1.6, 1.1, 1.2, 1.55, 1.3, 1.1, 0.9, 0.75, 0.7, 0.65, 0.55]);
   else note('Aucun équipement placé dans les racks de ce workspace.');
 
   // ---- 4. Conception Nomenclature et Adressage IP Global ----

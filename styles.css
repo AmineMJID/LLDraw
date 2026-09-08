@@ -1748,6 +1748,8 @@ body.topo-linking .topo-node { cursor: crosshair; }
   flex: none;
 }
 .lld-row-del:hover { background: rgba(220, 38, 38, .1); }
+/* Fiche popover : valeur catégorie */
+#dp-cat { font-size: 11.5px; }
 .lld-vlan-actions { display: flex; gap: 8px; }
 /* Cartes « site » de l'onglet Sites (2 lignes chacune) */
 .lld-site {

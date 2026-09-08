@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=33">
+  <link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
   <header class="topbar">
@@ -118,6 +118,10 @@
         <button id="btn-new-device" class="btn btn-primary btn-block">
           <span class="btn-ico">＋</span> Créer un device
         </button>
+        <label class="rack-size-row">
+          Filtrer par catégorie
+          <select id="pal-cat-filter"></select>
+        </label>
         <div id="device-list" class="device-list"></div>
         <p class="hint">
           Glissez un device dans un rack : il se verrouille automatiquement
@@ -274,6 +278,7 @@
           <div class="dp-row"><span class="dp-lbl">Nom</span><span class="dp-val editable" id="dp-name">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Taille</span><span class="dp-val editable" id="dp-size">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Départ</span><span class="dp-val editable" id="dp-slot">—</span></div>
+          <div class="dp-row"><span class="dp-lbl">Catégorie</span><span class="dp-val editable" id="dp-cat">—</span></div>
           <div class="dp-sec">Matériel</div>
           <div class="dp-row"><span class="dp-lbl">Marque</span><span class="dp-val editable" id="dp-brand">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Modèle</span><span class="dp-val editable" id="dp-model">—</span></div>
@@ -415,6 +420,9 @@
           <option value="12">12U</option>
         </select>
       </label>
+      <label>Catégorie
+        <select id="d-cat"></select>
+      </label>
       <div class="d-inv-title">Fiche d'inventaire (optionnel)</div>
       <div class="d-grid">
         <label>Marque
@@ -464,6 +472,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=34"></script>
 </body>
 </html>
