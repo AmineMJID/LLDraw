@@ -106,6 +106,21 @@ function normLldInfo(w) {
     gw: String(v.gw ?? '').slice(0, 50),
     purpose: String(v.purpose ?? '').slice(0, 60)
   })) : [];
+  // FAI (ch. 5.1) et interconnexion site à site (ch. 6.1)
+  if (!L.fai || typeof L.fai !== 'object') L.fai = {};
+  for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp']) {
+    if (typeof L.fai[k] !== 'string') L.fai[k] = '';
+    L.fai[k] = L.fai[k].slice(0, 120);
+  }
+  if (typeof L.fai.notes !== 'string') L.fai.notes = '';
+  L.fai.notes = L.fai.notes.slice(0, 2000);
+  if (!L.interco || typeof L.interco !== 'object') L.interco = {};
+  for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption']) {
+    if (typeof L.interco[k] !== 'string') L.interco[k] = '';
+    L.interco[k] = L.interco[k].slice(0, 120);
+  }
+  if (typeof L.interco.notes !== 'string') L.interco.notes = '';
+  L.interco.notes = L.interco.notes.slice(0, 2000);
   return L;
 }
 
@@ -173,6 +188,26 @@ function normCatField(d) {
   if (typeof d.cat === 'string' && DEV_CAT_MAP[d.cat]) return;
   d.cat = guessCatFromName(d.name)
        || (/watchguard|firebox/i.test(String(d.name || '')) ? 'firewall' : 'other');
+}
+
+// ---------- Domaines de câblage ----------
+// Un câble peut être rattaché à un domaine (chapitre du dossier LLD) :
+// les tableaux de câblage des chapitres 5.2 / 6.2 (et suivants) s'en servent.
+const CABLE_DOMAINS = [
+  ['', 'Général'],
+  ['fai', 'FAI'],
+  ['interco', 'Interconnexion 2 sites'],
+  ['firewall', 'Firewall'],
+  ['switching', 'Switching'],
+  ['server', 'Serveurs'],
+  ['storage', 'Stockage'],
+  ['ids', 'IDS'],
+  ['cctv', 'CCTV'],
+  ['pointage', 'Pointage']
+];
+const CABLE_DOMAIN_MAP = Object.fromEntries(CABLE_DOMAINS);
+function cableDomainLabel(dom) {
+  return (typeof dom === 'string' && CABLE_DOMAIN_MAP[dom]) || 'Général';
 }
 
 // Champs d'inventaire d'un device (présents sur le modèle ET sur chaque exemplaire)
@@ -311,6 +346,7 @@ function normalizeState(s) {
   s.workspaces.forEach(w => {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
     if (!Array.isArray(w.cables)) w.cables = [];
+    w.cables.forEach(c => { if (typeof c.domain !== 'string') c.domain = ''; });
     // Sites du workspace + nettoyage des racks pointant vers un site disparu
     normSites(w);
     const siteIds = new Set(w.sites.map(x => x.id));
@@ -743,6 +779,8 @@ $('#z-reset').addEventListener('click', () => {
     DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
   const d = $('#d-cat');
   if (d) d.innerHTML = DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
+  const cd = $('#c-domain');
+  if (cd) cd.innerHTML = CABLE_DOMAINS.map(([id, lbl]) => `<option value="${id}">${lbl}</option>`).join('');
 })();
 $('#pal-cat-filter').addEventListener('change', e => {
   palCatFilter = e.target.value;
@@ -2819,6 +2857,7 @@ function handlePortClickCabling(clientX, clientY, rack, inst, port) {
     id: uid(),
     name: nextCableId(ws),
     color: selectedCableColor,
+    domain: '',
     a: { rackId: pendingPort.rack.id, instId: pendingPort.inst.id, portId: pendingPort.port.id },
     b: { rackId: rack.id, instId: inst.id, portId: port.id }
   };
@@ -2872,6 +2911,7 @@ function openCablePopover(cable, clientX, clientY, isNew = false) {
 
   $('#cl-title').textContent = isNew ? 'Nouveau câble' : 'Câble';
   $('#c-name').value = cable.name || '';
+  $('#c-domain').value = cable.domain || '';
   selectedCableColor = cable.color || CABLE_COLORS[0].hex;
 
   const colorsEl = $('#c-colors');
@@ -2916,6 +2956,7 @@ $('#c-save').addEventListener('click', () => {
   pushHistory();
   cable.name = name;
   cable.color = selectedCableColor;
+  cable.domain = $('#c-domain').value;
   hideCablePopover();
   touchWorkspace(active());
   saveState();
@@ -2982,7 +3023,15 @@ function renderCableList() {
         <span class="cp-cable-path"></span>
       </span>
       <span class="cp-cable-del" title="Supprimer ce câble">✕</span>`;
-    row.querySelector('.cp-cable-id').textContent = cable.name || 'Sans ID';
+    const idEl = row.querySelector('.cp-cable-id');
+    idEl.textContent = cable.name || 'Sans ID';
+    if (cable.domain) {
+      const tag = document.createElement('span');
+      tag.className = 'cp-domain-tag';
+      tag.textContent = cableDomainLabel(cable.domain);
+      tag.title = `Domaine : ${cableDomainLabel(cable.domain)}`;
+      idEl.appendChild(tag);
+    }
     row.querySelector('.cp-cable-path').textContent =
       `${ea.port.name} (${ea.inst.name}) → ${eb.port.name} (${eb.inst.name})`;
 
@@ -3080,6 +3129,17 @@ const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Au
 // Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
 const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
 const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
+// Champs FAI (ch. 5) et interconnexion (ch. 6) : [clé, sélecteur HTML]
+const LLD_FAI_FIELDS = [
+  ['operator', '#lld-fai-operator'], ['offer', '#lld-fai-offer'], ['linkType', '#lld-fai-type'],
+  ['down', '#lld-fai-down'], ['up', '#lld-fai-up'], ['publicBlock', '#lld-fai-block'],
+  ['cpe', '#lld-fai-cpe'], ['cpeIp', '#lld-fai-cpeip'], ['notes', '#lld-fai-notes']
+];
+const LLD_IC_FIELDS = [
+  ['tech', '#lld-ic-tech'], ['epA', '#lld-ic-epa'], ['epB', '#lld-ic-epb'],
+  ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
+  ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes']
+];
 
 // Types devinés à partir des préfixes les plus courants (bouton « Générer »)
 const NOMEN_GUESS = {
@@ -3184,6 +3244,8 @@ function openLldModal() {
   const vlans = $('#lld-vlans');
   vlans.innerHTML = '';
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
+  LLD_FAI_FIELDS.forEach(([k, sel]) => { $(sel).value = L.fai[k] || ''; });
+  LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
   const sitesEl = $('#lld-sites');
   sitesEl.innerHTML = '';
   normSites(ws).forEach(s => lldAddSiteRow(sitesEl, s));
@@ -3279,6 +3341,8 @@ $('#lld-save').addEventListener('click', () => {
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
   L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
+  LLD_FAI_FIELDS.forEach(([k, sel]) => { L.fai[k] = $(sel).value.slice(0, 2000); });
+  LLD_IC_FIELDS.forEach(([k, sel]) => { L.interco[k] = $(sel).value.slice(0, 2000); });
 
   // Sites : on reserialize la liste (les nouveaux reçoivent un id généré)
   const prevIds = new Set(ws.sites.map(s => s.id));
@@ -4177,19 +4241,30 @@ function catSummaryRows(ws) {
   return rows;
 }
 
-function cablingRows(ws) {
-  const rows = [['ID câble', 'Couleur',
-                 'Rack A', 'Device A', 'Port A', 'Étiquette A',
-                 'Rack B', 'Device B', 'Port B', 'Étiquette B']];
+// Corps commun du tableau de câblage. domain = null : tous les câbles ;
+// withDomain : ajoute la colonne « Domaine » (chapitre du dossier LLD).
+function cablingRowsBase(ws, domain = null, withDomain = false) {
+  const head = ['ID câble', 'Couleur'];
+  if (withDomain) head.push('Domaine');
+  head.push('Rack A', 'Device A', 'Port A', 'Étiquette A',
+            'Rack B', 'Device B', 'Port B', 'Étiquette B');
+  const rows = [head];
   const epDesc = ep => {
     const d = resolveEndpoint(ws, ep);
     return d ? [d.rack.name, d.inst.name, d.port.name, d.port.label || ''] : ['', '', '', ''];
   };
   for (const c of (ws?.cables || [])) {
-    rows.push([c.name || '', c.color || '', ...epDesc(c.a), ...epDesc(c.b)]);
+    if (domain !== null && (c.domain || '') !== domain) continue;
+    const r = [c.name || '', c.color || ''];
+    if (withDomain) r.push(cableDomainLabel(c.domain));
+    r.push(...epDesc(c.a), ...epDesc(c.b));
+    rows.push(r);
   }
   return rows;
 }
+function cablingRows(ws) { return cablingRowsBase(ws, null, true); }
+// Câbles d'un seul domaine (ch. 5.2 FAI, 6.2 interconnexion…) : sans la colonne Domaine
+function cablingRowsByDomain(ws, domain) { return cablingRowsBase(ws, domain, false); }
 function portsRows(ws) {
   const rows = [['Rack', 'Site', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble']];
   const cableOf = (instId, portId) => {
@@ -4690,16 +4765,40 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   // ---- 5. Conception et Configuration FAI ----
   chapter('5', 'Conception et Configuration FAI', { flow: true });
   sub('5.1', 'Informations & Configuration');
-  placeholder();
+  {
+    const F = L.fai;
+    const fr = [['Opérateur', F.operator], ['Offre', F.offer], ['Type de lien', F.linkType],
+                ['Débit descendant', F.down], ['Débit montant', F.up],
+                ['Bloc IP publiques', F.publicBlock], ['CPE (modèle)', F.cpe], ['CPE (IP)', F.cpeIp]]
+      .filter(([, v]) => v && v.trim());
+    if (fr.length) {
+      drawTable([['Élément', 'Valeur'], ...fr], [1.5, 3.5], 8.5);
+      if (F.notes.trim()) { miniTitle('Notes de configuration'); paragraph(F.notes); }
+    } else placeholder();
+  }
   sub('5.2', 'Câblage');
-  placeholder();
+  const cabFai = cablingRowsByDomain(ws, 'fai');
+  if (cabFai.length > 1) drawTable(cabFai, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+  else note('Aucun câble classé « FAI » (mode Câblage : domaine du câble).');
 
   // ---- 6. Conception et Configuration Interconnexion site 2 site ----
   chapter('6', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
   sub('6.1', 'Informations & Configuration');
-  placeholder();
+  {
+    const I = L.interco;
+    const icr = [['Technologie', I.tech], ['Endpoint public site A', I.epA], ['Endpoint public site B', I.epB],
+                 ['Subnets locaux (A)', I.localSubnets], ['Subnets distants (B)', I.remoteSubnets],
+                 ['Routage', I.routing], ['Chiffrement', I.encryption]]
+      .filter(([, v]) => v && v.trim());
+    if (icr.length) {
+      drawTable([['Élément', 'Valeur'], ...icr], [1.9, 3.1], 8.5);
+      if (I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
+    } else placeholder();
+  }
   sub('6.2', 'Câblage');
-  placeholder();
+  const cabIc = cablingRowsByDomain(ws, 'interco');
+  if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+  else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
 
   // ---- 7 à 13 : chapitres par domaine (alimentés par les lots à venir) ----
   chapter('7', 'Conception et Configuration Firewall', { flow: true });
@@ -4746,7 +4845,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   drawTable(racksRows(ws), [2.4, 1.1, 0.9, 1, 0.9, 1.5, 1.5, 1.4, 1.4, 1]);
   miniTitle('Tableau de c\u00e2blage');
   const cr = cablingRows(ws);
-  if (cr.length > 1) drawTable(cr, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+  if (cr.length > 1) drawTable(cr, [1.1, 0.8, 1.15, 1.3, 1.55, 1.3, 1.5, 1.3, 1.55, 1.3, 1.5]);
   else note('Aucun câble.');
   if (planJpeg && planW && planH) {
     newPage();

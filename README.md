@@ -147,7 +147,10 @@ via localStorage, en secours).
 10. **Mode Câblage** : l'interrupteur **Câblage** de la barre du haut active le
     mode. Cliquez alors **un port, puis un autre port** pour les relier par un
     cordon (courbe réaliste avec effet de poids). Le câble reçoit un identifiant
-    (`CAB-001`…) et une **couleur** modifiables en cliquant sur le câble. Le
+    (`CAB-001`…), une **couleur** et un **domaine** (FAI, Interconnexion 2
+    sites, Switching…) modifiables en cliquant sur le câble — le domaine
+    répartit les cordons dans les tableaux de câblage des chapitres du dossier
+    LLD (ch. 5.2 FAI, 6.2 interconnexion…). Le
     panneau **Connexions** liste tous les câbles du workspace et permet de les
     retrouver (centrage) ou de les supprimer. Les câbles sont inclus dans
     l'export PNG/PDF. Désactiver l'interrupteur masque les câbles et interdit
@@ -169,11 +172,13 @@ via localStorage, en secours).
       ajouté à la page de garde du PDF) ;
     - **🌐 Réseau** — **nomenclature** (type d'objet, préfixe, exemple, règle)
       avec un bouton **🔎 Générer depuis les devices** qui détecte les
-      préfixes utilisés (FW, SW, SRV…) et propose le type d'objet, et le
+      préfixes utilisés (FW, SW, SRV…) et propose le type d'objet ; le
       **registre d'adressage IP global** (VLAN, nom, site, subnet, passerelle,
-      usage). Le bouton **🔎 Détecter depuis les ports** ajoute automatiquement
-      les VLANs utilisés sur les ports ou les liens logiques mais absents du
-      registre ;
+      usage) avec **🔎 Détecter depuis les ports** ; le bloc **FAI**
+      (opérateur, offre, type de lien, débits, bloc IP publiques, CPE,
+      notes de configuration — ch. 5) et le bloc **Interconnexion site 2
+      site** (technologie IPsec/MPLS/SD-WAN…, endpoints publics, subnets
+      locaux/distants, routage, chiffrement, notes — ch. 6) ;
     - **🏢 Sites** — gestion des sites du dossier (nom, adresse, contacts,
       description). **Site A / Site B** sont créés par défaut ; chaque rack se
       rattache à un site via le sélecteur de son en-tête (pastille colorée,

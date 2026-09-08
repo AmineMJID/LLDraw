@@ -163,16 +163,21 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
 - [x] PDF ch. 3.1 : **récapitulatif par catégorie** (nombre, modèles,
       sites) + inventaire détaillé
 
-### ⬜ Lot 4 — FAI & Interconnexion site 2 site (ch. 5, 6)
-- [ ] Onglet Réseau (modale 📘) — bloc **FAI** : opérateur, offre, type de
-      lien (FTTH/FTTO/EoC…), débit montant/descendant, bloc IP publiques,
-      équipement CPE (modèle, IP), notes de configuration
-- [ ] Bloc **Interconnexion** : technologie (IPsec, MPLS, SD-WAN, LAN-to-LAN…),
-      endpoints publics A/B, subnets locaux/distansts, protocole de routage,
-      chiffrement, notes de configuration
-- [ ] **Câblage par chapitre** : permettre d'étiqueter un câble avec un
-      « domaine » (FAI, Interco, Switching…) pour filtrer les tables 5.2 / 6.2
-- [ ] PDF ch. 5 et 6 complets (infos + config + table de câblage filtrée)
+### ✅ Lot 4 — FAI & Interconnexion site 2 site (ch. 5, 6) — **FAIT**
+- [x] Onglet **🌐 Réseau** — bloc **FAI** : opérateur, offre, type de lien
+      (FTTH/FTTO/fibre dédiée/EoC/ADSL/LS/4G-5G…), débits descendant/montant,
+      bloc IP publiques, CPE (modèle, IP), notes de configuration
+- [x] Bloc **Interconnexion site 2 site** : technologie (IPsec, MPLS, SD-WAN,
+      LAN-to-LAN, VPN SSL), endpoints publics A/B, subnets locaux/distants,
+      routage, chiffrement, notes de configuration
+- [x] **Domaine de câblage** : chaque câble porte un domaine (Général, FAI,
+      Interconnexion, Firewall, Switching, Serveurs, Stockage, IDS, CCTV,
+      Pointage) — sélecteur dans le popover du câble, étiquette dans le
+      panneau Connexions, colonne « Domaine » dans l'export câblage
+      (CSV/XLSX/PDF ch. 15)
+- [x] PDF **ch. 5.1 / 6.1** : tableau Élément/Valeur des infos + notes de
+      configuration ; **ch. 5.2 / 6.2** : table de câblage filtrée sur le
+      domaine correspondant (avec note d'aide si vide)
 
 ### ⬜ Lot 5 — Chapitres par catégorie (ch. 7 → 13)
 - [ ] Notes de configuration éditables **par catégorie** (onglet Chapitres)
