@@ -1068,18 +1068,18 @@ body.cabling .port.connectable {
   background: url('assets/rj45-port.svg') center / contain no-repeat;
   z-index: 5;
   cursor: default;
-  /* Pas de filter par défaut : ~170 ports sur un board rempli, chacun avec
-     un drop-shadow, coûtait très cher à la rastérisation (surfaces + flou).
-     Le glow reste au survol et pendant le drag (un seul élément à la fois). */
-  transition: transform .1s;
+  /* Effet de survol DÉSACTIVÉ (à réactiver si besoin) : grossir le port au
+     passage de la souris animait un transform + halo par port survolé —
+     quand le curseur balaie un board rempli, ça se produisait en rafale et
+     plombait le déplacement. L'infobulle (IP / VLAN) reste disponible. */
 }
+
+/* Ancien effet de survol — conservé en commentaire pour réactivation :
 .port:hover {
   transform: translate(-50%, -50%) scale(1.18);
-  /* box-shadow (simple peinture) plutôt que filter: drop-shadow : le filtre
-     crée une surface de rendu à chaque survol — coûteux quand le curseur
-     balaie une rangée de ports */
   box-shadow: 0 0 0 3px rgba(37, 99, 235, .4), 0 0 12px 3px rgba(37, 99, 235, .8);
 }
+*/
 
 /* Hover des ports neutralisé pendant les gestes de vue : le contenu défile
    sous le curseur et le :hover sauterait de port en port — chaque
