@@ -1746,7 +1746,12 @@ body.topo-linking .topo-node { cursor: crosshair; }
 
 /* ---------- Modale Infos dossier LLD ---------- */
 .modal-box-lg {
-  max-width: 640px;
+  /* Largeur effective : la règle de base .modal-box { width: 384px } s'appliquait
+     toujours (le max-width seul ne l'écrasait pas) — la barre d'onglets
+     (Document / Réseau / Sites / Chapitres / Flux) débordait et l'onglet Flux
+     exigeait un scroll horizontal. */
+  width: 640px;
+  max-width: calc(100vw - 36px);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
 }
@@ -1758,6 +1763,7 @@ body.topo-linking .topo-node { cursor: crosshair; }
 /* Onglets de la modale LLD (Document / Réseau / Sites / Chapitres) */
 .lld-tabs {
   display: flex;
+  flex-wrap: wrap;   /* écran étroit : 2e ligne plutôt qu'un scroll horizontal */
   gap: 4px;
   border-bottom: 1px solid var(--border-2);
   margin: 0 0 14px;
