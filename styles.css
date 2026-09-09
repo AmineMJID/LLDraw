@@ -1106,10 +1106,18 @@ body.cabling .port.connectable {
      lag augmentait avec le nombre de ports. will-change: transform donne
      à tous les ports ce calque en permanence. */
   will-change: transform;
-  /* Effet de survol DÉSACTIVÉ (à réactiver si besoin) : grossir le port au
-     passage de la souris animait un transform + halo par port survolé —
-     quand le curseur balaie un board rempli, ça se produisait en rafale et
-     plombait le déplacement. L'infobulle (IP / VLAN) reste disponible. */
+  /* Seul le transform est animé (composité GPU, zéro re-peinture du board).
+     Les règles .panning/.zooming/.dragging plus bas coupent le hover et
+     cette transition pendant les gestes de vue. */
+  transition: transform .12s ease;
+}
+/* Survol rétabli en version sûre : le grossissement n'anime que le calque
+   du port survolé (GPU), le halo est appliqué SANS transition (une seule
+   re-peinture d'un calque de 26 px — négligeable). Pas de filter:drop-shadow
+   ni de transition de box-shadow : ce sont eux qui faisaient lagger. */
+.port:hover {
+  transform: translate(-50%, -50%) scale(1.22);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .35), 0 0 14px 4px rgba(37, 99, 235, .75);
 }
 
 /* Ancien effet de survol — conservé en commentaire pour réactivation :

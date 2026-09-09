@@ -281,12 +281,16 @@ optimisations supplémentaires :
   ports étaient re-peints dans les tuiles du board géant à chaque
   défilement. `will-change: transform` sur `.port` donne ce calque à tous
   les ports en permanence ;
-- **effet de survol des ports retiré** — grossir le port au passage de la
-  souris (scale + halo + transition) se déclenchait en rafale dès que le
-  curseur balayait un board rempli et plombait la fluidité ; l'infobulle
-  IP/VLAN reste disponible au survol, et les ports sont inertes
-  (`pointer-events: none`) pendant pan/zoom/drag de baie (l'effet est
-  conservé en commentaire dans `styles.css` pour réactivation) ;
+- **effet de survol des ports rétabli en version sûre** — l'ancien survol
+  (`filter: drop-shadow` + transition de filtre) déclenchait des repaints
+  en rafale quand le curseur balayait un board rempli. Rétabli sans risque
+  depuis que chaque port possède son calque GPU : le grossissement n'anime
+  que le calque du port survolé (composité GPU) et le halo est un
+  `box-shadow` appliqué sans transition (une re-peinture de 26 px). Les
+  ports restent inertes (`pointer-events: none`) pendant pan/zoom/drag de
+  baie — le survol ne peut plus se déclencher en rafale pendant un geste.
+  Le graphique du port (RJ45) a été retravaillé : biseau métallique, reflet
+  satiné, cavité plus profonde, contacts dorés avec ombres portées ;
 
 ## 🎬 Démonstration
 
