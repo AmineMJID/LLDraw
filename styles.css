@@ -315,7 +315,8 @@ body.cabling .port.connectable {
   position: absolute;
   top: 14px;
   left: 14px;
-  width: 300px;
+  width: 340px;
+  max-width: calc(100% - 28px);
   max-height: calc(100% - 90px);
   background: rgba(255,255,255,.97);
   border: 1px solid var(--border-2);
@@ -379,7 +380,16 @@ body.cabling .port.connectable {
   box-shadow: 0 0 0 1px rgba(0,0,0,.2);
 }
 .cp-cable-body { flex: 1; min-width: 0; }
-.cp-cable-id { font-size: 12.5px; font-weight: 700; }
+/* Bloc + ellipsis : le nom du câble (ex : « CAB-001 · RTR-01 → FW-01 (transit
+   FAI) ») débordait du panneau et créait un scroll horizontal */
+.cp-cable-id {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .cp-cable-path {
   font-size: 10.5px;
   color: var(--muted);
@@ -630,6 +640,9 @@ body.cabling .port.connectable {
   border-radius: 10px;
   padding: 9px 12px;
   cursor: default;
+  /* Espacement avec les éléments voisins (bouton « Créer un device »,
+     listes, autres filtres…) */
+  margin: 10px 0;
 }
 .rack-size-row select {
   font-family: inherit;
@@ -641,6 +654,14 @@ body.cabling .port.connectable {
   border-radius: 7px;
   padding: 5px 8px;
   cursor: pointer;
+  /* Un select prend par défaut la largeur de son option la plus longue :
+     « Datacenter Siège — Casablanca » faisait déborder la ligne hors de la
+     sidebar. Largeur plafonnée + ellipsis ; la liste déroulante, elle,
+     affiche toujours les noms en entier. */
+  max-width: 55%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Board (viewport + plan navigable) ---------- */
@@ -768,7 +789,7 @@ body.cabling .port.connectable {
   height: 28px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 10px;
   background: linear-gradient(#4b525f, #363b46 60%, #2e333d);
   border: 1.5px solid var(--rack-edge);
@@ -811,7 +832,12 @@ body.cabling .port.connectable {
   padding: 2px 4px;
   cursor: pointer;
   flex-shrink: 0;
-  max-width: 92px;
+  /* Plafonné pour que l'en-tête du rack (356 px) tienne : avec les badges
+     U/kW/kg et le sélecteur de taille, les éléments fixes dépassaient
+     la largeur de la baie quand le nom du site était long */
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rack-site-sel option { color: #1f2733; }
 .rack.site-dim {
@@ -836,14 +862,18 @@ body.cabling .port.connectable {
 .rack-metrics {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   margin-left: auto;
-  flex-shrink: 0;
+  /* Rétrécissable : les trois badges ne doivent pas pousser le contenu de
+     l'en-tête hors de la baie quand le nom du rack/site est long */
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 .rack-metrics .rm {
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 99px;
   background: rgba(0, 0, 0, .35);
   border: 1px solid rgba(255, 255, 255, .16);
