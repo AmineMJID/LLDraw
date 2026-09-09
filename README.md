@@ -272,7 +272,14 @@ optimisations supplémentaires :
   appliqués une fois par frame d'écran ;
 - **sauvegarde en fin de geste** — l'écriture synchrone de l'état
   (~400 Ko, localStorage) pendant le pan/zoom provoquait des à-coups
-  réguliers ; elle n'a plus lieu qu'au relâchement.
+  réguliers ; elle n'a plus lieu qu'au relâchement ;
+- **hover des ports neutralisé pendant les gestes** — le board défile sous
+  le curseur : l'état `:hover` sautait de port en port et chaque
+  franchissement appliquait un filtre + une transition (repaints en rafale,
+  la principale cause du « 10 fps » sur un board rempli) ; les ports sont
+  en `pointer-events: none` pendant pan/zoom/drag de baie, et le survol
+  au repos utilise un `box-shadow` (peinture) plutôt qu'un
+  `filter: drop-shadow` (surface de rendu).
 
 ## 🎬 Démonstration
 

@@ -1075,7 +1075,23 @@ body.cabling .port.connectable {
 }
 .port:hover {
   transform: translate(-50%, -50%) scale(1.18);
-  filter: drop-shadow(0 0 5px rgba(37,99,235,.95));
+  /* box-shadow (simple peinture) plutôt que filter: drop-shadow : le filtre
+     crée une surface de rendu à chaque survol — coûteux quand le curseur
+     balaie une rangée de ports */
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .4), 0 0 12px 3px rgba(37, 99, 235, .8);
+}
+
+/* Hover des ports neutralisé pendant les gestes de vue : le contenu défile
+   sous le curseur et le :hover sauterait de port en port — chaque
+   application/retrait de filter + transition = un repaint, en rafale.
+   pointer-events: none empêche carrément l'état :hover pendant ce temps.
+   (Observé en mode édition de ports : la pulsation masque l'effet de survol
+   et le déplacement redevient fluide.) */
+.board-viewport.panning .port,
+.board-viewport.zooming .port,
+.rack.dragging .port {
+  pointer-events: none;
+  transition: none;
 }
 
 body.label-create .device { cursor: crosshair; }

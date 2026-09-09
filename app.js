@@ -787,6 +787,7 @@ function zoomAt(cx, cy, factor) {
 // frame d'écran (un trackpad peut en émettre des dizaines par frame, et
 // chaque changement d'échelle re-rastérise les tuiles visibles du calque)
 let wheelRaf = 0;
+let zoomIdleTimer = null;
 const wheelAcc = { x: 0, y: 0, f: 1 };
 viewport.addEventListener('wheel', e => {
   e.preventDefault();
@@ -794,6 +795,11 @@ viewport.addEventListener('wheel', e => {
   wheelAcc.x = e.clientX - r.left;
   wheelAcc.y = e.clientY - r.top;
   wheelAcc.f *= (e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  // Neutralise le :hover des ports le temps du zoom (règle CSS .zooming)
+  viewport.classList.add('zooming');
+  tooltip.classList.add('hidden');   // l'infobulle ne suit plus pendant le zoom
+  clearTimeout(zoomIdleTimer);
+  zoomIdleTimer = setTimeout(() => viewport.classList.remove('zooming'), 180);
   if (!wheelRaf) {
     wheelRaf = requestAnimationFrame(() => {
       wheelRaf = 0;
