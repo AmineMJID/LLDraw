@@ -667,12 +667,10 @@ function applyView() {
     lastZoomPct = pct;
     $('#z-pct').textContent = pct + '%';
   }
-  // Mémoriser la vue du workspace courant
-  const ws = active();
-  if (ws && ws.viewTouched) {
-    ws.view = { x: view.x, y: view.y, scale: view.scale };
-    scheduleSave();
-  }
+  // NB : plus de ws.view/scheduleSave ici — chaque geste appelle
+  // markViewTouched() à sa fin, qui mémorise la vue et sauvegarde UNE fois.
+  // (Écrire localStorage (synchrone, ~400 Ko) toutes les 400 ms pendant
+  // un pan/zoom provoquait des à-coups réguliers.)
 }
 
 // Marque la vue courante comme personnalisée (l'utilisateur a zoomé/déplacé)
@@ -785,12 +783,24 @@ function zoomAt(cx, cy, factor) {
   applyView();
 }
 
-// Zoom molette
+// Zoom molette — les ticks sont cumulés puis appliqués une seule fois par
+// frame d'écran (un trackpad peut en émettre des dizaines par frame, et
+// chaque changement d'échelle re-rastérise les tuiles visibles du calque)
+let wheelRaf = 0;
+const wheelAcc = { x: 0, y: 0, f: 1 };
 viewport.addEventListener('wheel', e => {
   e.preventDefault();
   const r = viewport.getBoundingClientRect();
-  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-  zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
+  wheelAcc.x = e.clientX - r.left;
+  wheelAcc.y = e.clientY - r.top;
+  wheelAcc.f *= (e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  if (!wheelRaf) {
+    wheelRaf = requestAnimationFrame(() => {
+      wheelRaf = 0;
+      zoomAt(wheelAcc.x, wheelAcc.y, wheelAcc.f);
+      wheelAcc.f = 1;
+    });
+  }
 }, { passive: false });
 
 // Pan : glisser le fond (pas sur une baie, un contrôle ou une fenêtre)
@@ -1456,6 +1466,7 @@ function renderDevice(rack, inst) {
     img.src = photo;
     img.alt = inst.name;
     img.draggable = false;
+    img.decoding = 'async';   // ne bloque pas le thread principal au décodage
     dev.appendChild(img);
   } else {
     const face = document.createElement('div');

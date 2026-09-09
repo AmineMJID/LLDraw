@@ -253,6 +253,27 @@ Quatre mécanismes le rendent fluide :
 - **libellé de zoom** — le pourcentage n'écrit dans le DOM que lorsqu'il
   change réellement.
 
+Sur un board **très rempli** (démo : ~170 ports, 22 faces avant), des
+optimisations supplémentaires :
+
+- **ports sans filtre par défaut** — chaque port portait un
+  `filter: drop-shadow`, l'un des effets les plus coûteux à rastériser,
+  multiplié par le nombre de ports ; le halo reste au survol et pendant le
+  drag (un seul élément à la fois) ;
+- **animations compositées** — la pulsation des ports (mode édition) et des
+  LED anime `transform`/`opacity` (GPU) au lieu de `filter` (repaint par
+  frame) ;
+- **grille de points en tuile PNG** — un blit pré-rendu au lieu d'un
+  radial-gradient rejoué sur toute la surface visible à chaque échelle ;
+- **`content-visibility: auto` sur les devices** — les équipements hors
+  écran ne sont ni layoutés ni peints : zoomé dans une baie, seul le visible
+  coûte ;
+- **zoom molette coalescé** — les ticks de molette/trackpad sont cumulés et
+  appliqués une fois par frame d'écran ;
+- **sauvegarde en fin de geste** — l'écriture synchrone de l'état
+  (~400 Ko, localStorage) pendant le pan/zoom provoquait des à-coups
+  réguliers ; elle n'a plus lieu qu'au relâchement.
+
 ## 🎬 Démonstration
 
 Le dossier **`demo/`** contient un datacenter de démonstration complet
