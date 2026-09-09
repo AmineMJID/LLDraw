@@ -971,10 +971,10 @@ body.cabling .port.connectable {
   background: #111;
   z-index: 2;
   cursor: grab;
-  /* Les devices hors écran ne sont ni layoutés ni peints — sur un board
-     très rempli zoomé, seule la fenêtre visible coûte quelque chose */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 33px;
+  /* content-visibility: auto retiré — il provoquait une repeinture (ports
+     inclus) de chaque équipement franchissant le bord de l'écran pendant
+     le pan, coût proportionnel au nombre de ports ; le calque GPU par port
+     (.port { will-change }) rend l'optimisation inutile. */
 }
 .device:active { cursor: grabbing; }
 .device > img {
@@ -1068,6 +1068,14 @@ body.cabling .port.connectable {
   background: url('assets/rj45-port.svg') center / contain no-repeat;
   z-index: 5;
   cursor: default;
+  /* Calque GPU dédié par port — c'est ce qui rendait les modes Câblage et
+     « Modifier les ports » fluides : leur pulsation (animation transform)
+     plaçait déjà chaque port sur son propre calque, peint une fois puis
+     caché. Sans elle (mode normal / ajout de ports), les ports étaient
+     re-peints dans les tuiles du board géant à chaque défilement — le
+     lag augmentait avec le nombre de ports. will-change: transform donne
+     à tous les ports ce calque en permanence. */
+  will-change: transform;
   /* Effet de survol DÉSACTIVÉ (à réactiver si besoin) : grossir le port au
      passage de la souris animait un transform + halo par port survolé —
      quand le curseur balaie un board rempli, ça se produisait en rafale et

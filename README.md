@@ -273,6 +273,14 @@ optimisations supplémentaires :
 - **sauvegarde en fin de geste** — l'écriture synchrone de l'état
   (~400 Ko, localStorage) pendant le pan/zoom provoquait des à-coups
   réguliers ; elle n'a plus lieu qu'au relâchement ;
+- **calque GPU par port** — diagnostic de l'utilisateur : le lag augmentait
+  avec le nombre de ports, et les modes Câblage / « Modifier les ports »
+  étaient fluides alors que les modes normal / ajout étaient lents. Cause :
+  la pulsation de ces modes (animation `transform`) plaçait chaque port sur
+  son propre calque GPU — peint une fois, caché — quand en mode normal les
+  ports étaient re-peints dans les tuiles du board géant à chaque
+  défilement. `will-change: transform` sur `.port` donne ce calque à tous
+  les ports en permanence ;
 - **effet de survol des ports retiré** — grossir le port au passage de la
   souris (scale + halo + transition) se déclenchait en rafale dès que le
   curseur balayait un board rempli et plombait la fluidité ; l'infobulle
