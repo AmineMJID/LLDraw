@@ -836,16 +836,18 @@ def build():
     state['devices'] = [d for d in state['devices'] if d.get('id') not in new_dev_ids]
     state['devices'].extend(new_devices)
 
-    # enrichit le device WatchGuard permanent (photo) s'il est absent de la bibliothèque
+    # Device WatchGuard permanent (bibliothèque) — partagé entre l'état de
+    # l'utilisateur et la copie démo autonome ci-dessous
+    wg_device = {
+        'id': 'watchguard-permanent', 'name': 'WatchGuard Firebox M390', 'sizeU': 1,
+        'photo': dataurl(WG_BASE), 'permanent': True, 'cat': 'firewall',
+        'brand': 'WatchGuard', 'model': 'Firebox M390', 'partRef': 'WGM39010',
+        'serial': '', 'ipMgmt': '', 'vlan': '', 'watts': 150, 'weightKg': 6.0,
+        'ports': [{'id': 'pd-wg-eth%d' % i, 'name': 'eth%d' % i, 'label': 'eth%d' % i,
+                   'xPct': x, 'yPct': 72, 'size': 0.8} for i, x in enumerate((24, 33, 42, 51))],
+    }
     if not any(d.get('id') == 'watchguard-permanent' for d in state['devices']):
-        state['devices'].insert(0, {
-            'id': 'watchguard-permanent', 'name': 'WatchGuard Firebox M390', 'sizeU': 1,
-            'photo': dataurl(WG_BASE), 'permanent': True, 'cat': 'firewall',
-            'brand': 'WatchGuard', 'model': 'Firebox M390', 'partRef': 'WGM39010',
-            'serial': '', 'ipMgmt': '', 'vlan': '', 'watts': 150, 'weightKg': 6.0,
-            'ports': [{'id': 'pd-wg-eth%d' % i, 'name': 'eth%d' % i, 'label': 'eth%d' % i,
-                       'xPct': x, 'yPct': 72, 'size': 0.8} for i, x in enumerate((24, 33, 42, 51))],
-        })
+        state['devices'].insert(0, wg_device)
 
     state['workspaces'].append(ws)
     state['activeWorkspaceId'] = DEMO_WS_ID
@@ -853,6 +855,24 @@ def build():
     os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
     with open(STATE_PATH, 'w', encoding='utf-8') as f:
         json.dump(state, f, ensure_ascii=False, separators=(',', ':'))
+
+    # ---------- copie « démo seule » pour hébergement statique ----------
+    # demo/demo-state.json (versionné) : bibliothèque + workspace démo, SANS
+    # les données perso de l'utilisateur. app.js la charge au démarrage quand
+    # il n'y a ni serveur ni sauvegarde locale -> la démo s'affiche telle
+    # quelle sur GitHub Pages.
+    demo_only = {
+        'devices': [wg_device] + new_devices,
+        'workspaces': [ws],
+        'activeWorkspaceId': DEMO_WS_ID,
+    }
+    demo_dir = os.path.join(ROOT, 'demo')
+    os.makedirs(demo_dir, exist_ok=True)
+    bundled_path = os.path.join(demo_dir, 'demo-state.json')
+    with open(bundled_path, 'w', encoding='utf-8') as f:
+        json.dump(demo_only, f, ensure_ascii=False, separators=(',', ':'))
+    print('  démo autonome (statique) : %s (%.0f Ko)'
+          % (bundled_path, os.path.getsize(bundled_path) / 1024))
 
     # ---------- résumé ----------
     nA = len(rackA_insts)

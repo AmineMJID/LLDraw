@@ -466,8 +466,31 @@ async function bootState() {
     setSaveStatus('cloud');
     if (hasContent(local)) scheduleServerSave(true);
   } else {
-    state = loadLocalState();
+    const local = loadLocalState();
+    if (hasContent(local)) {
+      state = local;
+    } else {
+      // Hébergement statique (GitHub Pages…) : ni serveur ni sauvegarde
+      // locale -> charger la démo embarquée (demo/demo-state.json, générée
+      // par demo_datacenter.py) pour ne pas démarrer sur un écran vide.
+      state = await loadBundledDemoState();
+      if (hasContent(state)) saveState();   // miroir local : les modif. persisteront
+    }
     setSaveStatus('local');
+  }
+}
+
+// État « démo seule » versionné dans le dépôt : utilisé quand l'application
+// est servie en statique (GitHub Pages) sur un navigateur qui n'a jamais
+// sauvegardé d'état. En file:// le fetch est bloqué : retourne un état vide.
+async function loadBundledDemoState() {
+  try {
+    const res = await fetch('demo/demo-state.json', { cache: 'no-store' });
+    if (!res.ok) return emptyState();
+    const demo = normalizeState(await res.json());
+    return hasContent(demo) ? demo : emptyState();
+  } catch (e) {
+    return emptyState();
   }
 }
 

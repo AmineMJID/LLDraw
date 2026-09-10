@@ -292,6 +292,33 @@ optimisations supplémentaires :
   Le graphique du port (RJ45) a été retravaillé : biseau métallique, reflet
   satiné, cavité plus profonde, contacts dorés avec ombres portées ;
 
+## 🚀 Déploiement
+
+**Hébergement statique (GitHub Pages…)** — aucun serveur requis :
+
+- Publiez le dépôt (Settings → Pages → branche principale) ;
+- au premier chargement, l'application détecte l'absence de serveur et de
+  sauvegarde locale et charge **la démo embarquée** (`demo/demo-state.json`,
+  versionnée — 2 baies, 26 câbles, dossier LLD rempli) ;
+- les modifications sont alors sauvegardées dans le navigateur
+  (localStorage) uniquement.
+
+**Mode serveur (`python server.py`)** — état partagé et persistant :
+
+- sert l'application **et** l'API de sauvegarde (`data/state.json`) : les
+  workspaces survivent au changement de navigateur ;
+- le port honore la variable d'environnement `PORT` (imposée par les
+  hébergeurs PaaS — Render, Fly.io, Railway…) puis l'argument explicite
+  (`python server.py 9000`) ;
+- sur un PaaS, prévoyez un **disque persistant** pour `data/` (sinon l'état
+  est remis à zéro à chaque redéploiement) ; un simple VPS avec
+  `python3 server.py` suffit aussi (aucune dépendance).
+
+La démo se régénère sur une machine avec Pillow :
+`python demo_datacenter.py` met à jour `data/state.json` (workspace démo
+ajouté aux données existantes) **et** `demo/demo-state.json` (copie « démo
+seule » pour l'hébergement statique — à committer).
+
 ## 🎬 Démonstration
 
 Le dossier **`demo/`** contient un datacenter de démonstration complet
