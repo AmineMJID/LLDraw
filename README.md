@@ -58,6 +58,11 @@ via localStorage, en secours).
    puis glissez la carte **Rack** sur le board. Vous pouvez placer plusieurs
    racks, les déplacer en tirant l'en-tête, **changer leur taille** via le menu
    dans l'en-tête, et les **renommer** en double-cliquant sur le nom.
+   Le sélecteur de **site** de l'en-tête rattache le rack à un site déclaré
+   dans la fiche du dossier (onglet **Sites**) : une **pastille colorée**
+   identifie le site, reprise dans les exports (PDF, PNG, CSV, Excel). La
+   section **Sites** du panneau de gauche permet de **filtrer le board** par
+   site (les racks des autres sites sont atténués).
    L'en-tête affiche des **métriques de capacité** mises à jour en direct :
    espace occupé (`8/12U`, en rouge si plein), **puissance totale** et
    **poids total** des devices (si renseignés). **Double-cliquez sur les
@@ -66,9 +71,11 @@ via localStorage, en secours).
    Les racks sont dessinés comme de vrais racks 19" : montants perforés
    (trous de cage nuts), règle des U et faceplates métalliques.
 3. **Recherche globale** : le champ de la barre du haut cherche dans **tous les
-   workspaces** (nom de device, nom de port, étiquette — ex. `CAB-SRV-01`).
-   Un clic sur un résultat ouvre le bon workspace, centre la vue sur le rack et
-   fait **clignoter** le device ou le port trouvé.
+   workspaces** (nom de device, nom de port, étiquette — ex. `CAB-SRV-01` —,
+   **sites** et **flux réseau**). Un clic sur un résultat device/port ouvre le
+   bon workspace, centre la vue sur le rack et fait **clignoter** l'élément
+   trouvé ; un résultat **site** ou **flux** ouvre directement la fiche du
+   dossier (onglet correspondant).
 4. **Annuler / Rétablir** : **Ctrl+Z** (ou Ctrl+Maj+Z) et **Ctrl+Y** permettent
    d'annuler/rétablir toutes les actions (placement, suppression, « Vider »,
    création de device/workspace…).
@@ -76,29 +83,50 @@ via localStorage, en secours).
    menu permettant d'enregistrer le plan du workspace courant :
    - **Image PNG** / **Plan PDF (1 page)** — rendu haute définition des racks,
      devices et ports ;
-   - **Document LLD (PDF)** — le dossier complet, multi-pages : page de garde
-     (client, auteur, version, historique des révisions, statistiques), synthèse
-     des racks (capacités et budgets), inventaire, plan d'adressage & ports,
-     tableau de câblage, registre VLANs & subnets, topologie logique et
-     élévations des racks en images. Pieds de page numérotés (date, page X/Y).
+   - **Document LLD (PDF)** — le dossier complet, multi-pages, structuré en
+     **15 chapitres** avec **sommaire** (numéros de page) : 1. Objectif,
+     2. Aperçu du site, 3. Architecture cible (+ 3.1 Équipements/inventaire),
+     4. Nomenclature & adressage IP global, 5. FAI, 6. Interconnexion
+     site 2 site, 7. Firewall, 8. Switching (5 sous-sections), 9. Serveurs,
+     10. Stockage, 11. IDS, 12. CCTV, 13. Pointage, 14. Flux réseau &
+     diagramme (topologie), 15. Câblage/Rack (synthèse, tableau de câblage,
+     élévations). Page de garde (client, auteur, version, révisions,
+     statistiques). Les chapitres non encore renseignés affichent
+     « Section à compléter ». Pieds de page numérotés (date, page X/Y).
      Généré sans dépendance (PDF natif).
    - **Classeur Excel (.xlsx)** — un vrai fichier Excel (écrit sans dépendance)
-     avec 4 feuilles : *Inventaire*, *Câblage*, *Ports* et *Racks* (en-têtes
-     stylés, largeurs automatiques, première ligne figée) ;
-   - **Inventaire (CSV)** — tableau de tous les devices posés (rack, étage,
-     taille, marque, modèle, référence, n° série, IP mgmt, VLAN, puissance,
-     poids, nombre de ports) ;
+     avec jusqu'à 8 feuilles : *Inventaire*, *Câblage*, *Ports*, *Racks*,
+     *Sites*, *Nomenclature*, *Adressage IP* et *Flux* (en-têtes stylés,
+     largeurs automatiques, première ligne figée ; les feuilles vides sont
+     omises) ;
+   - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
+     étage, taille, nom, catégorie, marque, modèle, référence, n° série,
+     IP mgmt, VLAN, puissance, poids, nombre de ports) ;
    - **Câblage (CSV)** — tableau des cordons (ID, couleur, extrémités A/B :
      rack, device, port, étiquette) ;
-   - **Ports & étiquettes (CSV)** — tous les ports avec rack, étage, device,
-     nom du port, étiquette, IP, VLAN et câble connecté.
+   - **Ports & étiquettes (CSV)** — tous les ports avec rack, site, étage,
+     device, nom du port, étiquette, IP, VLAN et câble connecté ;
+   - **Sites (CSV)** — sites du dossier (adresse, contacts, description,
+     nombre de racks) ;
+   - **Nomenclature & adressage (CSV)** — table de nomenclature puis registre
+     VLANs & subnets ;
+   - **Flux réseau (CSV)** — matrice des flux (source, destination,
+     protocole/ports, sens, usage).
    Les CSV sont au format Excel français (séparateur `;`, UTF-8 BOM).
 6. **Créer un device** : cliquez sur **＋ Créer un device**, donnez-lui un nom,
-   une taille (1U, 2U…) et importez la **photo 2D de la face avant**.
+   une taille (1U, 2U…), une **catégorie** (Routeur/FAI, Firewall, Switch,
+   Borne WiFi, Serveur, Stockage, IDS, CCTV, Pointage, Onduleur, Brassage,
+   Autre) et importez la **photo 2D de la face avant**. Laissée sur « Autre »,
+   la catégorie est **devinée depuis le préfixe du nom** (`FW-01` → Firewall,
+   `SW-CORE-01` → Switch, `SRV-…` → Serveur…) ; les anciens devices sont
+   migrés de la même façon à l'ouverture.
    Une **fiche d'inventaire** optionnelle complète le modèle : marque, modèle,
    référence constructeur, n° série, IP management, VLAN(s), puissance (W) et
    poids (kg). Ces champs sont recopiés sur chaque exemplaire posé dans un rack
    (et restent modifiables individuellement depuis la fiche de survol).
+   La **bibliothèque** affiche la catégorie de chaque modèle (icône) et peut
+   être **filtrée par catégorie** ; le device WatchGuard permanent est
+   pré-classé « Firewall ».
    - **Détection automatique des ports** : dès l'import de la photo, l'application
      analyse l'image et repère les connecteurs (RJ45, SFP…) — ports noirs sur
      panneau clair, clairs sur panneau sombre, etc. Les ports trouvés sont
@@ -112,10 +140,12 @@ via localStorage, en secours).
    ou le retirer avec le bouton ✕ au survol.
    - **Fiche du device au survol** : laissez le curseur un instant sur un device posé
      (hors modes Étiquetage/Câblage) — une fiche s'affiche avec sa photo, son nom, sa
-     taille, son étage de départ et son nombre de ports. **Double-cliquez sur une
-     valeur pour la modifier** : le nom, la taille en U (replacé automatiquement au
-     plus près s'il faut de la place) ou l'étage de départ (avec contrôle de collision).
-     Entrée valide, Échap annule.
+     taille, sa **catégorie**, son étage de départ et son nombre de ports —
+     plus sa **zone de Switching** pour les switchs et bornes WiFi.
+     **Double-cliquez sur une valeur pour la modifier** : le nom, la taille en U
+     (replacé automatiquement au plus près s'il faut de la place), la catégorie
+     et la zone (listes déroulantes) ou l'étage de départ (avec contrôle de
+     collision). Entrée valide, Échap annule.
 8. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
    **➕ Créer des ports** (cliquez sur la face avant d'un device pour y poser un port,
    icône RJ45) et **✏️ Modifier les ports** (cliquez sur un port existant pour changer
@@ -128,27 +158,58 @@ via localStorage, en secours).
 10. **Mode Câblage** : l'interrupteur **Câblage** de la barre du haut active le
     mode. Cliquez alors **un port, puis un autre port** pour les relier par un
     cordon (courbe réaliste avec effet de poids). Le câble reçoit un identifiant
-    (`CAB-001`…) et une **couleur** modifiables en cliquant sur le câble. Le
+    (`CAB-001`…), une **couleur** et un **domaine** (FAI, Interconnexion 2
+    sites, Switching…) modifiables en cliquant sur le câble — le domaine
+    répartit les cordons dans les tableaux de câblage des chapitres du dossier
+    LLD (ch. 5.2 FAI, 6.2 interconnexion…). Le
     panneau **Connexions** liste tous les câbles du workspace et permet de les
     retrouver (centrage) ou de les supprimer. Les câbles sont inclus dans
     l'export PNG/PDF. Désactiver l'interrupteur masque les câbles et interdit
     leur édition.
 11. **Vue Topologie (diagramme logique)** : le sélecteur **📐 Élévations /
     🕸️ Topologie** de la barre du haut bascule le board en diagramme réseau.
-    **⚡ Générer depuis les racks** crée un noeud par device posé (nom, marque/
-    modèle, rack · étage, IP mgmt) ; **🔌 Importer les câbles** crée un lien par
+    **⚡ Générer depuis les racks** crée un noeud par device posé (nom avec
+    icône de catégorie, marque/modèle, rack · étage, IP mgmt) ; **🔌 Importer les câbles** crée un lien par
     câble physique ; **➕ Nouveau lien** relie deux noeuds cliqués l'un après
     l'autre. Un lien (nom, débit, VLAN, style, couleur) se modifie en cliquant
     dessus ; les noeuds se déplacent à la souris ; **double-clic sur un noeud**
     revient en élévations, centré sur le device. La topologie est sauvegardée
     dans le workspace et se recadre automatiquement (⌂).
 12. **Infos du dossier LLD** : le bouton **📘** de la barre du haut ouvre la
-    fiche du dossier : **client**, **auteur**, **version**, **historique des
-    révisions** (tableau ajouté à la page de garde du PDF) et **registre
-    VLANs & subnets** (ID, nom, subnet, passerelle, usage). Le bouton
-    **🔎 Détecter depuis les ports** ajoute automatiquement les VLANs
-    utilisés sur les ports ou les liens logiques mais absents du registre.
-    Ces informations alimentent les sections correspondantes du document LLD.
+    fiche du dossier, organisée en onglets :
+    - **📄 Document** — **client**, **auteur**, **version**, textes du dossier
+      (**1. Objectif du document**, **2.2. Infrastructure existante**,
+      **3. Architecture cible**) et **historique des révisions** (tableau
+      ajouté à la page de garde du PDF) ;
+    - **🌐 Réseau** — **nomenclature** (type d'objet, préfixe, exemple, règle)
+      avec un bouton **🔎 Générer depuis les devices** qui détecte les
+      préfixes utilisés (FW, SW, SRV…) et propose le type d'objet ; le
+      **registre d'adressage IP global** (VLAN, nom, site, subnet, passerelle,
+      usage) avec **🔎 Détecter depuis les ports** ; le bloc **FAI**
+      (opérateur, offre, type de lien, débits, bloc IP publiques, CPE,
+      notes de configuration — ch. 5) et le bloc **Interconnexion site 2
+      site** (technologie IPsec/MPLS/SD-WAN…, endpoints publics, subnets
+      locaux/distants, routage, chiffrement, notes — ch. 6) ;
+    - **🏢 Sites** — gestion des sites du dossier (nom, adresse, contacts,
+      description). **Site A / Site B** sont créés par défaut ; chaque rack se
+      rattache à un site via le sélecteur de son en-tête (pastille colorée,
+      filtrage du board par site). Supprimer un site détache les racks qui y
+      étaient rattachés ;
+    - **🔄 Flux** — **matrice des flux réseau** (ch. 14) : nom, source,
+      destination, protocole/ports, sens (bidirectionnel/unidirectionnel) et
+      usage de chaque flux ; dans la vue Topologie, le sélecteur 🔄 met en
+      évidence les équipements mentionnés dans le flux choisi ;
+    - **📚 Chapitres** — **notes de configuration** de chaque chapitre 7 à 13
+      (Firewall, Switching, Serveurs, Stockage, IDS, CCTV, Pointage) et
+      **zones de Switching** qui découpent le chapitre 8 : par défaut INFRA,
+      LAN Site B, Aruba AP Site A, Aruba AP Site B, LAN Site A (ajout,
+      suppression, réordonnancement ↑↓) ; les chapitres 7 à 13 du PDF sont
+      générés automatiquement : notes, équipements par catégorie (et par
+      zone pour le Switching), ports & adressage, câblage du domaine.
+    Ces informations alimentent les chapitres correspondants du document LLD
+    (le ch. 2.1 affiche le tableau des sites et les racks par site, et la
+    colonne **Site** apparaît dans l'inventaire, les ports et la synthèse des
+    racks de tous les exports).
 
 Tout est sauvegardé automatiquement : sur le **serveur (fichier `data/state.json`)**
 quand l'application est lancée avec `server.py`, et sinon dans le navigateur
@@ -156,6 +217,117 @@ quand l'application est lancée avec `server.py`, et sinon dans le navigateur
 devices et ports persistent donc entre les sessions — et même d'un navigateur à
 l'autre avec le serveur. Un rack se supprime individuellement via son ✕ ; un
 workspace entier se supprime depuis l'écran d'accueil.
+
+### Performances
+
+L'état (photos des faces avant comprises) peut atteindre plusieurs centaines de
+Ko. Trois mécanismes en limitent le coût en RAM et en CPU :
+
+- **Historique d'annulation léger** — les 40 snapshots d'undo clonent la
+  structure de l'état en **partageant les chaînes** (photos base64, immuables
+  en JS) : ~0,2 ms et quelques Ko par snapshot, au lieu de ~3 ms et ~32 Mo
+  cumulés avec un clonage JSON complet ;
+- **Sérialisation unique** — chaque sauvegarde ne paie `JSON.stringify(state)`
+  qu'une seule fois, partagée entre localStorage et le push serveur ;
+- **Photos non dupliquées** — un exemplaire posé dans une baie n'embarque plus
+  la copie de la photo de son modèle : le rendu retombe sur la bibliothèque
+  (surcharge possible par exemplaire), et la photo est matérialisée dans les
+  exemplaires concernés si le modèle est supprimé.
+
+### Fluidité du board (pan / zoom / déplacements)
+
+Le board est un élément de 8000×6000 px (grille de points + faces avant).
+Sans précaution, chaque frame de pan/zoom **repeint toute la surface visible**
+sur le thread principal — d'où un déplacement « à 10 fps » sur machine modeste.
+Quatre mécanismes le rendent fluide :
+
+- **calque GPU dédié** — `will-change: transform` sur `.board` : le pan/zoom
+  est traité par le compositeur sans repeindre la grille ni les photos ;
+- **`requestAnimationFrame`** — les `pointermove` (jusqu'à 240 Hz sur une
+  souris gamer) sont coalescés en une mise à jour visuelle par frame de
+  l'écran, pour le pan, le déplacement des baies et celui des nœuds de
+  topologie ;
+- **drag composité des baies** — pendant le déplacement d'une baie, seule une
+  translation (`transform`, GPU) est animée ; `left/top` et la sauvegarde ne
+  sont écrits qu'au relâchement ;
+- **libellé de zoom** — le pourcentage n'écrit dans le DOM que lorsqu'il
+  change réellement.
+
+Sur un board **très rempli** (démo : ~170 ports, 22 faces avant), des
+optimisations supplémentaires :
+
+- **ports sans filtre par défaut** — chaque port portait un
+  `filter: drop-shadow`, l'un des effets les plus coûteux à rastériser,
+  multiplié par le nombre de ports ; le halo reste au survol et pendant le
+  drag (un seul élément à la fois) ;
+- **animations compositées** — la pulsation des ports (mode édition) et des
+  LED anime `transform`/`opacity` (GPU) au lieu de `filter` (repaint par
+  frame) ;
+- **grille de points en tuile PNG** — un blit pré-rendu au lieu d'un
+  radial-gradient rejoué sur toute la surface visible à chaque échelle ;
+- **`content-visibility: auto` sur les devices** — les équipements hors
+  écran ne sont ni layoutés ni peints : zoomé dans une baie, seul le visible
+  coûte ;
+- **zoom molette coalescé** — les ticks de molette/trackpad sont cumulés et
+  appliqués une fois par frame d'écran ;
+- **sauvegarde en fin de geste** — l'écriture synchrone de l'état
+  (~400 Ko, localStorage) pendant le pan/zoom provoquait des à-coups
+  réguliers ; elle n'a plus lieu qu'au relâchement ;
+- **calque GPU par port** — diagnostic de l'utilisateur : le lag augmentait
+  avec le nombre de ports, et les modes Câblage / « Modifier les ports »
+  étaient fluides alors que les modes normal / ajout étaient lents. Cause :
+  la pulsation de ces modes (animation `transform`) plaçait chaque port sur
+  son propre calque GPU — peint une fois, caché — quand en mode normal les
+  ports étaient re-peints dans les tuiles du board géant à chaque
+  défilement. `will-change: transform` sur `.port` donne ce calque à tous
+  les ports en permanence ;
+- **effet de survol des ports rétabli en version sûre** — l'ancien survol
+  (`filter: drop-shadow` + transition de filtre) déclenchait des repaints
+  en rafale quand le curseur balayait un board rempli. Rétabli sans risque
+  depuis que chaque port possède son calque GPU : le grossissement n'anime
+  que le calque du port survolé (composité GPU) et le halo est un
+  `box-shadow` appliqué sans transition (une re-peinture de 26 px). Les
+  ports restent inertes (`pointer-events: none`) pendant pan/zoom/drag de
+  baie — le survol ne peut plus se déclencher en rafale pendant un geste.
+  Le graphique du port (RJ45) a été retravaillé : biseau métallique, reflet
+  satiné, cavité plus profonde, contacts dorés avec ombres portées ;
+
+## 🚀 Déploiement
+
+**Hébergement statique (GitHub Pages…)** — aucun serveur requis :
+
+- Publiez le dépôt (Settings → Pages → branche principale) ;
+- au premier chargement, l'application détecte l'absence de serveur et de
+  sauvegarde locale et charge **la démo embarquée** (`demo/demo-state.json`,
+  versionnée — 2 baies, 26 câbles, dossier LLD rempli) ;
+- les modifications sont alors sauvegardées dans le navigateur
+  (localStorage) uniquement.
+
+**Mode serveur (`python server.py`)** — état partagé et persistant :
+
+- sert l'application **et** l'API de sauvegarde (`data/state.json`) : les
+  workspaces survivent au changement de navigateur ;
+- le port honore la variable d'environnement `PORT` (imposée par les
+  hébergeurs PaaS — Render, Fly.io, Railway…) puis l'argument explicite
+  (`python server.py 9000`) ;
+- sur un PaaS, prévoyez un **disque persistant** pour `data/` (sinon l'état
+  est remis à zéro à chaque redéploiement) ; un simple VPS avec
+  `python3 server.py` suffit aussi (aucune dépendance).
+
+La démo se régénère sur une machine avec Pillow :
+`python demo_datacenter.py` met à jour `data/state.json` (workspace démo
+ajouté aux données existantes) **et** `demo/demo-state.json` (copie « démo
+seule » pour l'hébergement statique — à committer).
+
+## 🎬 Démonstration
+
+Le dossier **`demo/`** contient un datacenter de démonstration complet
+(2 baies : 3 Nutanix, 1 Dell R740, 2 NAS, 2 WatchGuard, 2 Peplink, 2 Aruba,
+2 AKCP, 5 panneaux de brassage, 3 passe-câbles à brosse, 26 cordons, 14 nœuds
+de topologie, 6 flux et un dossier LLD intégralement rempli) ainsi que le PDF
+LLD généré et un guide de présentation — voir `demo/GUIDE-DEMO.md`.
+Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
+à la demande (les données de démonstration ne sont pas versionnées).
 
 ## Fichiers
 
@@ -167,3 +339,5 @@ workspace entier se supprime depuis l'écran d'accueil.
   décliné en PNG (`logo-512.png`, `logo-192.png`), favicon (`favicon.ico` /
   `favicon-*.png`) et `apple-touch-icon.png`
 - `data/state.json` — état sauvegardé (créé automatiquement, non versionné)
+- `demo/` — datacenter de démonstration (PDF LLD, rendus, guide) ;
+  `demo_datacenter.py` — script de (re)construction du workspace démo

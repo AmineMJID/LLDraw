@@ -123,8 +123,13 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main():
-    port = 8080
     import sys
+    # PORT imposé par l'hébergeur (Render, Fly.io, Railway…) le cas échéant ;
+    # l'argument explicite prime pour un lancement local (python server.py 9000)
+    try:
+        port = int(os.environ.get("PORT", "8080"))
+    except ValueError:
+        port = 8080
     if len(sys.argv) > 1:
         try:
             port = int(sys.argv[1])

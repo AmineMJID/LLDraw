@@ -169,6 +169,8 @@ body {
   flex-shrink: 0;
 }
 .sr-type.port { background: var(--amber); }
+.sr-type.site { background: #059669; }
+.sr-type.flow { background: #7c3aed; }
 .sr-body { flex: 1; min-width: 0; }
 .sr-name {
   font-size: 13px;
@@ -304,8 +306,8 @@ body.cabling .port.connectable {
   animation: cabportpulse 1.6s ease-in-out infinite;
 }
 @keyframes cabportpulse {
-  0%, 100% { filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)) drop-shadow(0 0 0 rgba(37,99,235,0)); }
-  50%      { filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(37,99,235,1)); }
+  0%, 100% { transform: translateY(-50%) scale(1); opacity: 1; }
+  50%      { transform: translateY(-50%) scale(1.3); opacity: .7; }
 }
 
 /* ---------- Panneau Connexions ---------- */
@@ -313,7 +315,8 @@ body.cabling .port.connectable {
   position: absolute;
   top: 14px;
   left: 14px;
-  width: 300px;
+  width: 340px;
+  max-width: calc(100% - 28px);
   max-height: calc(100% - 90px);
   background: rgba(255,255,255,.97);
   border: 1px solid var(--border-2);
@@ -377,7 +380,16 @@ body.cabling .port.connectable {
   box-shadow: 0 0 0 1px rgba(0,0,0,.2);
 }
 .cp-cable-body { flex: 1; min-width: 0; }
-.cp-cable-id { font-size: 12.5px; font-weight: 700; }
+/* Bloc + ellipsis : le nom du câble (ex : « CAB-001 · RTR-01 → FW-01 (transit
+   FAI) ») débordait du panneau et créait un scroll horizontal */
+.cp-cable-id {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .cp-cable-path {
   font-size: 10.5px;
   color: var(--muted);
@@ -628,6 +640,9 @@ body.cabling .port.connectable {
   border-radius: 10px;
   padding: 9px 12px;
   cursor: default;
+  /* Espacement avec les éléments voisins (bouton « Créer un device »,
+     listes, autres filtres…) */
+  margin: 10px 0;
 }
 .rack-size-row select {
   font-family: inherit;
@@ -639,6 +654,14 @@ body.cabling .port.connectable {
   border-radius: 7px;
   padding: 5px 8px;
   cursor: pointer;
+  /* Un select prend par défaut la largeur de son option la plus longue :
+     « Datacenter Siège — Casablanca » faisait déborder la ligne hors de la
+     sidebar. Largeur plafonnée + ellipsis ; la liste déroulante, elle,
+     affiche toujours les noms en entier. */
+  max-width: 55%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Board (viewport + plan navigable) ---------- */
@@ -659,9 +682,18 @@ body.cabling .port.connectable {
   transform-origin: 0 0;
   user-select: none;
   background-color: #e4e7ee;
-  background-image: radial-gradient(circle, #b9bfcc 1.2px, transparent 1.2px);
+  /* Tuile PNG pré-rendue (blit) : bien moins chère à rastériser qu'un
+     radial-gradient rejoué sur toute la surface visible à chaque échelle */
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAOUlEQVR42mNgGAWjYBTQHDASq3Dn/jP/YWx3RxOi9TGRajg2PsUWUAIGhwXoYU5KHIyCUTAKhgMAAI+0DAqs/9BbAAAAAElFTkSuQmCC');
   background-size: 24px 24px;
+  /* Calque compositeur dédié : pan/zoom traités par le GPU sans repeindre
+     la grille de points ni les faces avant à chaque frame. */
+  will-change: transform;
 }
+
+/* Baie en cours de déplacement : compositage GPU du translate */
+.rack.dragging { will-change: transform; z-index: 10; }
+.rack.dragging .rack-header { cursor: grabbing; }
 
 .board-empty {
   position: absolute;
@@ -757,7 +789,7 @@ body.cabling .port.connectable {
   height: 28px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 10px;
   background: linear-gradient(#4b525f, #363b46 60%, #2e333d);
   border: 1.5px solid var(--rack-edge);
@@ -780,6 +812,39 @@ body.cabling .port.connectable {
   max-width: 150px;
 }
 .rack-title:hover { text-decoration: underline dotted; }
+.rack-site-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #545b68;
+  flex: none;
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,.35);
+}
+.rack-site-dot.none { background: #545b68; }
+.rack-site-sel {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e8ebf1;
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 5px;
+  padding: 2px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  /* Plafonné pour que l'en-tête du rack (356 px) tienne : avec les badges
+     U/kW/kg et le sélecteur de taille, les éléments fixes dépassaient
+     la largeur de la baie quand le nom du site était long */
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rack-site-sel option { color: #1f2733; }
+.rack.site-dim {
+  opacity: .22;
+  filter: saturate(.35);
+  transition: opacity .25s, filter .25s;
+}
 .rack-size-sel {
   font-family: inherit;
   font-size: 10px;
@@ -797,14 +862,18 @@ body.cabling .port.connectable {
 .rack-metrics {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   margin-left: auto;
-  flex-shrink: 0;
+  /* Rétrécissable : les trois badges ne doivent pas pousser le contenu de
+     l'en-tête hors de la baie quand le nom du rack/site est long */
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 .rack-metrics .rm {
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 99px;
   background: rgba(0, 0, 0, .35);
   border: 1px solid rgba(255, 255, 255, .16);
@@ -932,6 +1001,10 @@ body.cabling .port.connectable {
   background: #111;
   z-index: 2;
   cursor: grab;
+  /* content-visibility: auto retiré — il provoquait une repeinture (ports
+     inclus) de chaque équipement franchissant le bord de l'écran pendant
+     le pan, coût proportionnel au nombre de ports ; le calque GPU par port
+     (.port { will-change }) rend l'optimisation inutile. */
 }
 .device:active { cursor: grabbing; }
 .device > img {
@@ -1023,19 +1096,63 @@ body.cabling .port.connectable {
   width: 26px; height: 26px;
   transform: translate(-50%, -50%);
   background: url('assets/rj45-port.svg') center / contain no-repeat;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,.55));
   z-index: 5;
   cursor: default;
-  transition: transform .1s, filter .1s;
+  /* Calque GPU dédié par port — c'est ce qui rendait les modes Câblage et
+     « Modifier les ports » fluides : leur pulsation (animation transform)
+     plaçait déjà chaque port sur son propre calque, peint une fois puis
+     caché. Sans elle (mode normal / ajout de ports), les ports étaient
+     re-peints dans les tuiles du board géant à chaque défilement — le
+     lag augmentait avec le nombre de ports. will-change: transform donne
+     à tous les ports ce calque en permanence. */
+  will-change: transform;
+  /* Seul le transform est animé (composité GPU, zéro re-peinture du board).
+     Les règles .panning/.zooming/.dragging plus bas coupent le hover et
+     cette transition pendant les gestes de vue. */
+  transition: transform .12s ease;
 }
+/* Survol rétabli en version sûre : le grossissement n'anime que le calque
+   du port survolé (GPU), le halo est appliqué SANS transition (une seule
+   re-peinture d'un calque de 26 px — négligeable). Pas de filter:drop-shadow
+   ni de transition de box-shadow : ce sont eux qui faisaient lagger. */
+.port:hover {
+  transform: translate(-50%, -50%) scale(1.22);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .35), 0 0 14px 4px rgba(37, 99, 235, .75);
+}
+
+/* Ancien effet de survol — conservé en commentaire pour réactivation :
 .port:hover {
   transform: translate(-50%, -50%) scale(1.18);
-  filter: drop-shadow(0 0 5px rgba(37,99,235,.95));
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .4), 0 0 12px 3px rgba(37, 99, 235, .8);
+}
+*/
+
+/* Hover des ports neutralisé pendant les gestes de vue : le contenu défile
+   sous le curseur et le :hover sauterait de port en port — chaque
+   application/retrait de filter + transition = un repaint, en rafale.
+   pointer-events: none empêche carrément l'état :hover pendant ce temps.
+   (Observé en mode édition de ports : la pulsation masque l'effet de survol
+   et le déplacement redevient fluide.) */
+.board-viewport.panning .port,
+.board-viewport.zooming .port,
+.rack.dragging .port {
+  pointer-events: none;
+  transition: none;
 }
 
 body.label-create .device { cursor: crosshair; }
 body.label-edit   .device { cursor: default; }
+/* Pulsation des ports en mode édition : transform (composité GPU) au lieu
+   d'une animation de filter drop-shadow, très coûteuse répétée sur ~170 ports */
 body.label-edit .port { cursor: grab; animation: portpulse 1.6s ease-in-out infinite; }
+body.label-edit .port::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(217, 119, 6, .85);
+  pointer-events: none;
+}
 body.label-edit .port:active { cursor: grabbing; }
 .port.dragging {
   z-index: 20;
@@ -1045,8 +1162,8 @@ body.label-edit .port:active { cursor: grabbing; }
 body.label-create .device-del,
 body.label-edit   .device-del { display: none; }
 @keyframes portpulse {
-  0%, 100% { filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)) drop-shadow(0 0 0 rgba(217,119,6,0)); }
-  50%      { filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)) drop-shadow(0 0 6px rgba(217,119,6,.95)); }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.14); }
 }
 
 /* ---------- Infobulle port ---------- */
@@ -1636,11 +1753,76 @@ body.topo-linking .topo-node { cursor: crosshair; }
 }
 
 /* ---------- Modale Infos dossier LLD ---------- */
-.modal-box-lg { max-width: 640px; }
+.modal-box-lg {
+  /* Largeur effective : la règle de base .modal-box { width: 384px } s'appliquait
+     toujours (le max-width seul ne l'écrasait pas) — la barre d'onglets
+     (Document / Réseau / Sites / Chapitres / Flux) débordait et l'onglet Flux
+     exigeait un scroll horizontal. */
+  width: 640px;
+  max-width: calc(100vw - 36px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
 .btn-sm {
   padding: 6px 12px;
   font-size: 12px;
   margin-top: 6px;
+}
+/* Onglets de la modale LLD (Document / Réseau / Sites / Chapitres) */
+.lld-tabs {
+  display: flex;
+  flex-wrap: wrap;   /* écran étroit : 2e ligne plutôt qu'un scroll horizontal */
+  gap: 4px;
+  border-bottom: 1px solid var(--border-2);
+  margin: 0 0 14px;
+}
+.lld-tab {
+  flex: 1;
+  padding: 9px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 0 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lld-tab:hover:not(:disabled):not(.active) {
+  color: var(--text);
+  background: rgba(37, 99, 235, .07);
+}
+.lld-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.lld-tab:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.lld-pane { display: flex; flex-direction: column; gap: 4px; }
+.lld-pane .d-inv-title { margin-top: 6px; }
+.modal-box textarea {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  background: #fff;
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 58px;
+  line-height: 1.45;
+}
+.modal-box textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .13);
 }
 .lld-table { display: flex; flex-direction: column; gap: 5px; }
 .lld-row { display: flex; gap: 6px; align-items: center; }
@@ -1661,4 +1843,83 @@ body.topo-linking .topo-node { cursor: crosshair; }
   flex: none;
 }
 .lld-row-del:hover { background: rgba(220, 38, 38, .1); }
+/* Étiquette de domaine sur un câble (panneau Connexions) */
+.cp-domain-tag {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: rgba(37, 99, 235, .13);
+  color: #2563eb;
+  vertical-align: 1px;
+}
+/* Sélecteur de flux dans la barre d'outils topologie */
+.tt-flow-sel {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  max-width: 220px;
+}
+/* Noeuds / liens atténués quand un flux est sélectionné */
+.topo-node.topo-dim {
+  opacity: .22;
+  filter: saturate(.4);
+}
+/* Cartes « flux » (2 lignes) */
+.lld-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .55);
+}
+.lld-flow select {
+  margin-top: 0 !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+}
+.lld-flow .lld-row:last-child { padding-right: 0; }
+/* Zones de switching : boutons de réordonnancement */
+.lld-zone-up, .lld-zone-down {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  flex: none;
+}
+.lld-zone-up:hover, .lld-zone-down:hover {
+  color: var(--accent);
+  background: rgba(37, 99, 235, .1);
+}
+/* Fiche popover : valeur catégorie */
+#dp-cat { font-size: 11.5px; }
 .lld-vlan-actions { display: flex; gap: 8px; }
+/* Cartes « site » de l'onglet Sites (2 lignes chacune) */
+.lld-site {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .55);
+}
+.lld-site .lld-row:last-child { padding-right: 26px; }
+.lld-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}

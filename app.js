@@ -24,6 +24,7 @@ function ensureWatchGuard() {
       sizeU: 1,
       photo: null,
       permanent: true,
+      cat: 'firewall',
       brand: 'WatchGuard',
       model: 'Firebox',
       partRef: '',
@@ -80,6 +81,18 @@ function normLldInfo(w) {
     if (typeof L[k] !== 'string') L[k] = '';
     L[k] = L[k].slice(0, 80);
   }
+  // Textes documentaires (ch. 1, 2.2 et 3 du dossier LLD)
+  for (const k of ['objectif', 'existant', 'architecture']) {
+    if (typeof L[k] !== 'string') L[k] = '';
+    L[k] = L[k].slice(0, 4000);
+  }
+  // Nomenclature (ch. 4) : type d'objet -> préfixe -> exemple -> règle de nommage
+  L.nomen = Array.isArray(L.nomen) ? L.nomen.filter(r => r && typeof r === 'object').map(r => ({
+    type:    String(r.type ?? '').slice(0, 40),
+    prefix:  String(r.prefix ?? '').slice(0, 20),
+    example: String(r.example ?? '').slice(0, 60),
+    rule:    String(r.rule ?? '').slice(0, 100)
+  })) : [];
   L.revs = Array.isArray(L.revs) ? L.revs.filter(r => r && typeof r === 'object').map(r => ({
     rev: String(r.rev ?? '').slice(0, 10),
     date: String(r.date ?? '').slice(0, 10),
@@ -93,6 +106,38 @@ function normLldInfo(w) {
     gw: String(v.gw ?? '').slice(0, 50),
     purpose: String(v.purpose ?? '').slice(0, 60)
   })) : [];
+  // FAI (ch. 5.1) et interconnexion site à site (ch. 6.1)
+  if (!L.fai || typeof L.fai !== 'object') L.fai = {};
+  for (const k of ['operator', 'offer', 'linkType', 'down', 'up', 'publicBlock', 'cpe', 'cpeIp']) {
+    if (typeof L.fai[k] !== 'string') L.fai[k] = '';
+    L.fai[k] = L.fai[k].slice(0, 120);
+  }
+  if (typeof L.fai.notes !== 'string') L.fai.notes = '';
+  L.fai.notes = L.fai.notes.slice(0, 2000);
+  if (!L.interco || typeof L.interco !== 'object') L.interco = {};
+  for (const k of ['tech', 'epA', 'epB', 'localSubnets', 'remoteSubnets', 'routing', 'encryption']) {
+    if (typeof L.interco[k] !== 'string') L.interco[k] = '';
+    L.interco[k] = L.interco[k].slice(0, 120);
+  }
+  if (typeof L.interco.notes !== 'string') L.interco.notes = '';
+  L.interco.notes = L.interco.notes.slice(0, 2000);
+  // Notes de configuration par chapitre (ch. 7 à 13)
+  if (!L.catNotes || typeof L.catNotes !== 'object') L.catNotes = {};
+  for (const k of ['firewall', 'switching', 'server', 'storage', 'ids', 'cctv', 'pointage']) {
+    if (typeof L.catNotes[k] !== 'string') L.catNotes[k] = '';
+    L.catNotes[k] = L.catNotes[k].slice(0, 2000);
+  }
+  // Zones de Switching (sous-chapitres 8.1, 8.2…) — par défaut : structure cible
+  L.swZones = Array.isArray(L.swZones) ? L.swZones.filter(z => z && typeof z === 'object').map(z => ({
+    id: String(z.id || uid()),
+    name: String(z.name ?? '').slice(0, 40).trim() || 'Zone'
+  })) : [
+    { id: uid(), name: 'INFRA' },
+    { id: uid(), name: 'LAN Site B' },
+    { id: uid(), name: 'Aruba AP Site A' },
+    { id: uid(), name: 'Aruba AP Site B' },
+    { id: uid(), name: 'LAN Site A' }
+  ];
   return L;
 }
 
@@ -108,12 +153,87 @@ function fmtWatts(w) {
     : Math.round(w) + ' W';
 }
 
+// ---------- Catégories de devices ----------
+// Chaque device (modèle de la bibliothèque ET exemplaire posé) porte une
+// catégorie métier : elle structure le dossier LLD (ch. 3.1 Équipements et
+// futurs chapitres 7 à 13) et permet de filtrer la bibliothèque.
+const DEV_CATEGORIES = [
+  ['router',   '\ud83c\udf10', 'Routeur / FAI'],
+  ['firewall', '\ud83d\udee1\ufe0f', 'Firewall'],
+  ['switch',   '\ud83d\udd00', 'Switch'],
+  ['ap',       '\ud83d\udcf6', 'Borne WiFi (AP)'],
+  ['server',   '\ud83d\udda5\ufe0f', 'Serveur'],
+  ['storage',  '\ud83d\udcbe', 'Stockage'],
+  ['ids',      '\ud83d\udea8', 'Intrusion (IDS/IPS)'],
+  ['cctv',     '\ud83d\udcf9', 'CCTV'],
+  ['pointage', '\u23f1\ufe0f', 'Pointage (SPO)'],
+  ['ups',      '\ud83d\udd0b', 'Onduleur / PDU'],
+  ['patch',    '\ud83d\udd0c', 'Brassage (panneau)'],
+  ['other',    '\ud83d\udce6', 'Autre']
+];
+const DEV_CAT_MAP = Object.fromEntries(DEV_CATEGORIES.map(([id, ico, lbl]) => [id, { ico, lbl }]));
+
+function normCat(cat) {
+  return (typeof cat === 'string' && DEV_CAT_MAP[cat]) ? cat : 'other';
+}
+function catLabel(cat) { return DEV_CAT_MAP[cat]?.lbl || 'Autre'; }
+function catIcon(cat)  { return DEV_CAT_MAP[cat]?.ico || '\ud83d\udce6'; }
+
+// Catégorie devinée depuis le préfixe du nom (ex : « FW-01 » -> firewall)
+const CAT_BY_PREFIX = {
+  FW: 'firewall', FWS: 'firewall', ASA: 'firewall', FGT: 'firewall', VPN: 'firewall',
+  RTR: 'router', RT: 'router', GW: 'router', CPE: 'router', ISP: 'router',
+  SW: 'switch',
+  AP: 'ap', WAP: 'ap',
+  SRV: 'server', ESX: 'server', HV: 'server',
+  NAS: 'storage', SAN: 'storage', STO: 'storage',
+  IDS: 'ids', IPS: 'ids',
+  CAM: 'cctv', NVR: 'cctv', DVR: 'cctv', CCTV: 'cctv',
+  SPO: 'pointage', PTG: 'pointage', PTA: 'pointage',
+  UPS: 'ups', PDU: 'ups',
+  ODF: 'patch', IDF: 'patch'
+};
+function guessCatFromName(name) {
+  const m = String(name || '').match(/^([A-Za-z]{2,4})-/);
+  if (!m) return null;
+  return CAT_BY_PREFIX[m[1].toUpperCase()] || null;
+}
+
+// Normalise la catégorie d'un device/instance (rétro-compatibilité :
+// les anciens objets reçoivent une catégorie devinée, sinon « Autre »)
+function normCatField(d) {
+  if (typeof d.cat === 'string' && DEV_CAT_MAP[d.cat]) return;
+  d.cat = guessCatFromName(d.name)
+       || (/watchguard|firebox/i.test(String(d.name || '')) ? 'firewall' : 'other');
+}
+
+// ---------- Domaines de câblage ----------
+// Un câble peut être rattaché à un domaine (chapitre du dossier LLD) :
+// les tableaux de câblage des chapitres 5.2 / 6.2 (et suivants) s'en servent.
+const CABLE_DOMAINS = [
+  ['', 'Général'],
+  ['fai', 'FAI'],
+  ['interco', 'Interconnexion 2 sites'],
+  ['firewall', 'Firewall'],
+  ['switching', 'Switching'],
+  ['server', 'Serveurs'],
+  ['storage', 'Stockage'],
+  ['ids', 'IDS'],
+  ['cctv', 'CCTV'],
+  ['pointage', 'Pointage']
+];
+const CABLE_DOMAIN_MAP = Object.fromEntries(CABLE_DOMAINS);
+function cableDomainLabel(dom) {
+  return (typeof dom === 'string' && CABLE_DOMAIN_MAP[dom]) || 'Général';
+}
+
 // Champs d'inventaire d'un device (présents sur le modèle ET sur chaque exemplaire)
 const DEV_TEXT_FIELDS = ['brand', 'model', 'partRef', 'serial', 'ipMgmt', 'vlan'];
 function normInvFields(d) {
   for (const k of DEV_TEXT_FIELDS) if (typeof d[k] !== 'string') d[k] = '';
   d.watts = Number.isFinite(d.watts) ? d.watts : 0;
   d.weightKg = Number.isFinite(d.weightKg) ? d.weightKg : 0;
+  normCatField(d);
   return d;
 }
 
@@ -121,8 +241,10 @@ function normInvFields(d) {
 function normalizeRack(r) {
   r.sizeU = r.sizeU || DEFAULT_RACK_U;
   if (!r.name) r.name = `Rack ${r.sizeU}U`;
+  if (typeof r.siteId !== 'string') r.siteId = '';   // rattachement à un site
   r.instances = Array.isArray(r.instances) ? r.instances : [];
   r.instances.forEach(i => {
+    if (typeof i.zone !== 'string') i.zone = '';   // zone de switching (ch. 8)
     i.ports = Array.isArray(i.ports) ? i.ports : [];
     i.ports.forEach(p => {
       if (typeof p.size !== 'number') p.size = 1;
@@ -145,6 +267,44 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ---------- Sites ----------
+// Couleurs d'identification (badge / pastille), attribuées par position
+const SITE_COLORS = ['#60a5fa', '#34d399', '#fbbf24', '#c084fc', '#f87171', '#22d3ee', '#a3e635', '#f472b6'];
+
+function defaultSites() {
+  return [
+    { id: uid(), name: 'Site A', address: '', contact: '', desc: '' },
+    { id: uid(), name: 'Site B', address: '', contact: '', desc: '' }
+  ];
+}
+
+// Normalise la liste des sites d'un workspace (rétro-compatibilité :
+// un workspace sans sites obtient Site A + Site B par défaut)
+function normSites(w) {
+  const arr = Array.isArray(w.sites) ? w.sites : null;
+  w.sites = (arr ?? defaultSites()).filter(s => s && typeof s === 'object').map(s => ({
+    id: String(s.id || uid()),
+    name: String(s.name ?? '').slice(0, 40).trim() || 'Site',
+    address: String(s.address ?? '').slice(0, 80),
+    contact: String(s.contact ?? '').slice(0, 80),
+    desc: String(s.desc ?? '').slice(0, 200)
+  }));
+  return w.sites;
+}
+
+function siteById(ws, id) {
+  return (ws?.sites || []).find(s => s.id === id) || null;
+}
+function siteName(ws, rack) {
+  const s = siteById(ws, rack?.siteId);
+  return s ? s.name : '';
+}
+function siteColor(ws, rack) {
+  const sites = ws?.sites || [];
+  const idx = sites.findIndex(s => s.id === rack?.siteId);
+  return idx >= 0 ? SITE_COLORS[idx % SITE_COLORS.length] : null;
+}
+
 // ---------- État ----------
 // Structure :
 //   state.devices           -> bibliothèque PARTAGÉE entre workspaces
@@ -157,12 +317,15 @@ let topoLinkPending = null;    // noeud de départ pendant la création d'un lie
 let dragPayload = null;
 let popoverCtx = null;
 let suppressPortClick = false;   // true juste après un glisser-déposer de port
+let siteFilter = 'all';          // id du site filtré sur le board, 'all' = tous
+let palCatFilter = 'all';        // filtre de la bibliothèque par catégorie
+let topoFlowFilter = '';        // id du flux mis en évidence dans la vue Topologie
 
 // Vue du board (décalage + échelle) — mémorisée par workspace
 const view = { x: 80, y: 50, scale: 1 };
 
 function makeWorkspace(name, racks = []) {
-  return { id: uid(), name, racks, cables: [], view: null, viewTouched: false, updatedAt: Date.now() };
+  return { id: uid(), name, racks, cables: [], sites: defaultSites(), view: null, viewTouched: false, updatedAt: Date.now() };
 }
 
 function emptyState() {
@@ -202,12 +365,33 @@ function normalizeState(s) {
   s.workspaces.forEach(w => {
     w.racks = (Array.isArray(w.racks) ? w.racks : []).map(normalizeRack);
     if (!Array.isArray(w.cables)) w.cables = [];
+    w.cables.forEach(c => { if (typeof c.domain !== 'string') c.domain = ''; });
+    // Matrice des flux réseau (ch. 14)
+    if (!Array.isArray(w.flows)) w.flows = [];
+    w.flows = w.flows.filter(f => f && typeof f === 'object').map(f => ({
+      id: String(f.id || uid()),
+      name: String(f.name ?? '').slice(0, 60),
+      src: String(f.src ?? '').slice(0, 80),
+      dst: String(f.dst ?? '').slice(0, 80),
+      proto: String(f.proto ?? '').slice(0, 60),
+      sens: f.sens === 'uni' ? 'uni' : 'bi',
+      usage: String(f.usage ?? '').slice(0, 120)
+    }));
+    // Sites du workspace + nettoyage des racks pointant vers un site disparu
+    normSites(w);
+    const siteIds = new Set(w.sites.map(x => x.id));
+    w.racks.forEach(r => { if (r.siteId && !siteIds.has(r.siteId)) r.siteId = ''; });
     if (typeof w.updatedAt !== 'number') w.updatedAt = 0;
     // Vue topologique (diagramme logique) : structure + nettoyage
     if (!w.topology || !Array.isArray(w.topology.nodes) || !Array.isArray(w.topology.links))
       w.topology = { nodes: [], links: [] };
     pruneTopology(w);
     normLldInfo(w);
+    // Zones de switching : détacher les devices pointant vers une zone disparue
+    const zoneIds = new Set((w.lld.swZones || []).map(z => z.id));
+    w.racks.forEach(r => r.instances.forEach(i => {
+      if (i.zone && !zoneIds.has(i.zone)) i.zone = '';
+    }));
     // Les anciennes vues par défaut ne sont pas considérées comme personnalisées :
     // l'application recadrera automatiquement sur le contenu à la première ouverture.
     w.viewTouched = !!w.viewTouched;
@@ -282,17 +466,43 @@ async function bootState() {
     setSaveStatus('cloud');
     if (hasContent(local)) scheduleServerSave(true);
   } else {
-    state = loadLocalState();
+    const local = loadLocalState();
+    if (hasContent(local)) {
+      state = local;
+    } else {
+      // Hébergement statique (GitHub Pages…) : ni serveur ni sauvegarde
+      // locale -> charger la démo embarquée (demo/demo-state.json, générée
+      // par demo_datacenter.py) pour ne pas démarrer sur un écran vide.
+      state = await loadBundledDemoState();
+      if (hasContent(state)) saveState();   // miroir local : les modif. persisteront
+    }
     setSaveStatus('local');
+  }
+}
+
+// État « démo seule » versionné dans le dépôt : utilisé quand l'application
+// est servie en statique (GitHub Pages) sur un navigateur qui n'a jamais
+// sauvegardé d'état. En file:// le fetch est bloqué : retourne un état vide.
+async function loadBundledDemoState() {
+  try {
+    const res = await fetch('demo/demo-state.json', { cache: 'no-store' });
+    if (!res.ok) return emptyState();
+    const demo = normalizeState(await res.json());
+    return hasContent(demo) ? demo : emptyState();
+  } catch (e) {
+    return emptyState();
   }
 }
 
 function pushToServer() {
   if (!serverAvailable) return Promise.resolve(false);
+  // Réutilise la sérialisation de saveState si elle est fraîche (une seule
+  // copie du JSON au lieu de deux), sinon sérialise à la demande.
+  const body = pendingStateJson !== null ? pendingStateJson : JSON.stringify(state);
   return fetch(SERVER_API, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state)
+    body
   })
     .then(res => {
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -305,7 +515,8 @@ function pushToServer() {
       serverAvailable = false;
       setSaveStatus('local');
       return false;
-    });
+    })
+    .finally(() => { pendingStateJson = null; });
 }
 
 // Écritures groupées (~600 ms) pour ne pas saturer le serveur
@@ -335,10 +546,16 @@ function touchWorkspace(ws) {
   if (ws) ws.updatedAt = Date.now();
 }
 
+// Dernière sérialisation de l'état : partagée entre localStorage et le push
+// serveur pour ne payer JSON.stringify(state) qu'UNE fois par sauvegarde.
+let pendingStateJson = null;
+
 function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    pendingStateJson = JSON.stringify(state);
+    localStorage.setItem(STORAGE_KEY, pendingStateJson);
   } catch (e) {
+    pendingStateJson = null;
     console.warn('Sauvegarde locale impossible (quota localStorage ?)', e);
   }
   // Synchronisation avec le serveur (fichier JSON) si disponible
@@ -360,7 +577,22 @@ let undoStack = [];
 let redoStack = [];
 
 function cloneState() {
-  return JSON.parse(JSON.stringify(state));
+  // Copie structurelle qui PARTAGE les chaînes (photos en base64 notamment,
+  // immuables en JS) : chaque snapshot d'undo ne duplique plus les ~677 Ko
+  // de photos — quelques Ko de structure au lieu d'un clone JSON complet
+  // (qui coûtait ~3 ms et ~32 Mo de RAM pour 40 niveaux d'historique).
+  const walk = (v) => {
+    if (v === null || typeof v !== 'object') return v;   // strings/nombres : par référence
+    if (Array.isArray(v)) {
+      const a = new Array(v.length);
+      for (let i = 0; i < v.length; i++) a[i] = walk(v[i]);
+      return a;
+    }
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = walk(v[k]);
+    return o;
+  };
+  return walk(state);
 }
 
 // À appeler AVANT toute mutation de state (hors vue/zoom-pan)
@@ -383,6 +615,7 @@ function refreshAll() {
     }
   }
   renderPalette();
+  renderSiteFilter();
   renderHomeListSafe();
   const stillExists = ws && state.workspaces.some(w => w.id === ws.id);
   if (stillExists) {
@@ -447,15 +680,20 @@ document.addEventListener('keydown', e => {
 const viewport = $('#board-viewport');
 const board    = $('#board');
 
+let lastZoomPct = -1;
 function applyView() {
   board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
-  $('#z-pct').textContent = Math.round(view.scale * 100) + '%';
-  // Mémoriser la vue du workspace courant
-  const ws = active();
-  if (ws && ws.viewTouched) {
-    ws.view = { x: view.x, y: view.y, scale: view.scale };
-    scheduleSave();
+  // Le libellé de zoom ne change qu'au changement de pourcentage (évite une
+  // mutation DOM par événement pointermove pendant le pan)
+  const pct = Math.round(view.scale * 100);
+  if (pct !== lastZoomPct) {
+    lastZoomPct = pct;
+    $('#z-pct').textContent = pct + '%';
   }
+  // NB : plus de ws.view/scheduleSave ici — chaque geste appelle
+  // markViewTouched() à sa fin, qui mémorise la vue et sauvegarde UNE fois.
+  // (Écrire localStorage (synchrone, ~400 Ko) toutes les 400 ms pendant
+  // un pan/zoom provoquait des à-coups réguliers.)
 }
 
 // Marque la vue courante comme personnalisée (l'utilisateur a zoomé/déplacé)
@@ -568,12 +806,30 @@ function zoomAt(cx, cy, factor) {
   applyView();
 }
 
-// Zoom molette
+// Zoom molette — les ticks sont cumulés puis appliqués une seule fois par
+// frame d'écran (un trackpad peut en émettre des dizaines par frame, et
+// chaque changement d'échelle re-rastérise les tuiles visibles du calque)
+let wheelRaf = 0;
+let zoomIdleTimer = null;
+const wheelAcc = { x: 0, y: 0, f: 1 };
 viewport.addEventListener('wheel', e => {
   e.preventDefault();
   const r = viewport.getBoundingClientRect();
-  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-  zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
+  wheelAcc.x = e.clientX - r.left;
+  wheelAcc.y = e.clientY - r.top;
+  wheelAcc.f *= (e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  // Neutralise le :hover des ports le temps du zoom (règle CSS .zooming)
+  viewport.classList.add('zooming');
+  tooltip.classList.add('hidden');   // l'infobulle ne suit plus pendant le zoom
+  clearTimeout(zoomIdleTimer);
+  zoomIdleTimer = setTimeout(() => viewport.classList.remove('zooming'), 180);
+  if (!wheelRaf) {
+    wheelRaf = requestAnimationFrame(() => {
+      wheelRaf = 0;
+      zoomAt(wheelAcc.x, wheelAcc.y, wheelAcc.f);
+      wheelAcc.f = 1;
+    });
+  }
 }, { passive: false });
 
 // Pan : glisser le fond (pas sur une baie, un contrôle ou une fenêtre)
@@ -586,6 +842,7 @@ viewport.addEventListener('pointerdown', e => {
   const startX = e.clientX, startY = e.clientY;
   const ox = view.x, oy = view.y;
   let panned = false;
+  let panRaf = 0;
   viewport.setPointerCapture(e.pointerId);
   viewport.classList.add('panning');
 
@@ -593,13 +850,18 @@ viewport.addEventListener('pointerdown', e => {
     panned = true;
     view.x = ox + ev.clientX - startX;
     view.y = oy + ev.clientY - startY;
-    applyView();
+    // Appliquer la vue au rythme de l'écran : les souris/touchpads émettent
+    // jusqu'à 240 événements/s, inutile de payer 240 mises à jour pour 60 fps.
+    if (!panRaf) {
+      panRaf = requestAnimationFrame(() => { panRaf = 0; applyView(); });
+    }
   };
   const onUp = () => {
     viewport.classList.remove('panning');
     viewport.removeEventListener('pointermove', onMove);
     viewport.removeEventListener('pointerup', onUp);
-    if (panned) markViewTouched();
+    if (panRaf) { cancelAnimationFrame(panRaf); panRaf = 0; }
+    if (panned) { applyView(); markViewTouched(); }
   };
   viewport.addEventListener('pointermove', onMove);
   viewport.addEventListener('pointerup', onUp);
@@ -622,6 +884,21 @@ $('#z-reset').addEventListener('click', () => {
    PANNEAU LATÉRAL — palette & devices
    ============================================================ */
 
+// Options des sélecteurs de catégorie (bibliothèque + modale device)
+(function fillCatSelects() {
+  const f = $('#pal-cat-filter');
+  if (f) f.innerHTML = '<option value="all">Toutes les catégories</option>' +
+    DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
+  const d = $('#d-cat');
+  if (d) d.innerHTML = DEV_CATEGORIES.map(([id, ico, lbl]) => `<option value="${id}">${ico} ${lbl}</option>`).join('');
+  const cd = $('#c-domain');
+  if (cd) cd.innerHTML = CABLE_DOMAINS.map(([id, lbl]) => `<option value="${id}">${lbl}</option>`).join('');
+})();
+$('#pal-cat-filter').addEventListener('change', e => {
+  palCatFilter = e.target.value;
+  renderPalette();
+});
+
 function renderPalette() {
   const list = $('#device-list');
   list.innerHTML = '';
@@ -629,7 +906,19 @@ function renderPalette() {
   // S'assurer que le WatchGuard permanent existe toujours
   ensureWatchGuard();
 
-  state.devices.forEach(d => {
+  // Filtre par catégorie ('all' = toutes)
+  const shown = palCatFilter === 'all'
+    ? state.devices
+    : state.devices.filter(d => normCat(d.cat) === palCatFilter);
+
+  if (!shown.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = 'Aucun device dans cette catégorie.';
+    list.appendChild(empty);
+  }
+
+  shown.forEach(d => {
     const card = document.createElement('div');
     card.className = 'pal-card device-card';
     card.draggable = true;
@@ -642,7 +931,7 @@ function renderPalette() {
       </div>
       <div class="pal-meta">
         <strong>${escapeHtml(d.name)}</strong>
-        <small>${d.sizeU}U</small>
+        <small>${d.sizeU}U · ${catIcon(d.cat)} ${escapeHtml(catLabel(d.cat))}</small>
       </div>
       <div class="pal-actions">
         <button class="mini-edit" title="Modifier ce device">✏️</button>
@@ -666,6 +955,13 @@ function renderPalette() {
       card.querySelector('.mini-del').addEventListener('click', () => {
         if (confirm(`Supprimer le modèle "${d.name}" de la bibliothèque ?\n(Les exemplaires déjà placés sont conservés.)`)) {
           pushHistory();
+          // Les exemplaires posés qui affichent la photo du modèle la
+          // conservent : on la leur matérialise avant de retirer le modèle.
+          if (d.photo) {
+            state.workspaces.forEach(w => w.racks.forEach(r => r.instances.forEach(i => {
+              if (i.deviceId === d.id && !i.photo) i.photo = d.photo;
+            })));
+          }
           state.devices = state.devices.filter(x => x.id !== d.id);
           saveState();
           renderPalette();
@@ -748,6 +1044,30 @@ function renderBoard() {
 }
 
 /* ============================================================
+   FILTRE PAR SITE (panneau de gauche)
+   ============================================================ */
+
+// Met à jour le sélecteur « Filtrer le board » de la sidebar.
+// Masqué si le workspace courant n'a aucun site déclaré.
+function renderSiteFilter() {
+  const sec = $('#site-filter-sec');
+  const sel = $('#site-filter');
+  if (!sec || !sel) return;
+  const ws = active();
+  const sites = ws?.sites || [];
+  sec.classList.toggle('hidden', sites.length === 0);
+  if (siteFilter !== 'all' && !sites.some(s => s.id === siteFilter)) siteFilter = 'all';
+  sel.innerHTML = '<option value="all">Tous les sites</option>' +
+    sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  sel.value = siteFilter;
+}
+
+$('#site-filter').addEventListener('change', e => {
+  siteFilter = e.target.value;
+  renderBoard();
+});
+
+/* ============================================================
    RACK
    ============================================================ */
 
@@ -758,11 +1078,21 @@ function renderRack(rack) {
   el.style.left = rack.x + 'px';
   el.style.top  = rack.y + 'px';
 
+  // Filtre par site : atténuer les racks hors site sélectionné
+  if (siteFilter !== 'all' && rack.siteId !== siteFilter) el.classList.add('site-dim');
+
   // ---- En-tête ----
+  const ws = active();
+  const sites = ws?.sites || [];
   const header = document.createElement('div');
   header.className = 'rack-header';
   header.innerHTML = `
     <span class="rack-led"></span>
+    <span class="rack-site-dot${siteColor(ws, rack) ? '' : ' none'}" title="Site du rack"></span>
+    <select class="rack-site-sel${sites.length ? '' : ' hidden'}" title="Rattacher ce rack à un site">
+      <option value="">— site —</option>
+      ${sites.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+    </select>
     <span class="rack-title" title="Double-cliquez pour renommer"></span>
     <select class="rack-size-sel" title="Changer la taille du rack">
       ${RACK_SIZES.map(u => `<option value="${u}">${u}U</option>`).join('')}
@@ -776,6 +1106,27 @@ function renderRack(rack) {
   titleEl.textContent = rack.name;
   const sizeSel = header.querySelector('.rack-size-sel');
   sizeSel.value = String(rack.sizeU);
+
+  // Pastille de site (couleur attribuée par position dans la liste des sites)
+  const dotEl = header.querySelector('.rack-site-dot');
+  const dotColor = siteColor(ws, rack);
+  if (dotColor) {
+    dotEl.style.background = dotColor;
+    dotEl.title = `Site : ${siteName(ws, rack)}`;
+  } else {
+    dotEl.title = 'Aucun site';
+  }
+
+  // Rattachement du rack à un site
+  const siteSel = header.querySelector('.rack-site-sel');
+  siteSel.value = rack.siteId || '';
+  siteSel.addEventListener('change', e => {
+    pushHistory();
+    rack.siteId = e.target.value;
+    touchWorkspace(active());
+    saveState();
+    renderBoard();
+  });
 
   // Métriques de capacité : U occupés, puissance, poids (+ budgets, double-clic)
   const metricsEl = header.querySelector('.rack-metrics');
@@ -868,18 +1219,32 @@ function renderRack(rack) {
     const startX = e.clientX, startY = e.clientY;
     const ox = rack.x, oy = rack.y;
     let moved = false;
+    let dragRaf = 0;
     header.setPointerCapture(e.pointerId);
     const onMove = ev => {
       moved = true;
       rack.x = Math.max(0, Math.min(ox + (ev.clientX - startX) / view.scale, BOARD_W - RACK_W));
       rack.y = Math.max(0, Math.min(oy + (ev.clientY - startY) / view.scale, BOARD_H - rackHeight(rack)));
-      el.style.left = rack.x + 'px';
-      el.style.top  = rack.y + 'px';
+      // translate composité (GPU) pendant le drag — left/top ne sont écrits
+      // qu'au relâchement, ce qui évite un layout + repaint par frame
+      el.classList.add('dragging');
+      if (!dragRaf) {
+        dragRaf = requestAnimationFrame(() => {
+          dragRaf = 0;
+          el.style.transform = `translate(${rack.x - ox}px, ${rack.y - oy}px)`;
+        });
+      }
     };
     const onUp = () => {
       header.removeEventListener('pointermove', onMove);
       header.removeEventListener('pointerup', onUp);
+      if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
+      el.classList.remove('dragging');
+      el.style.transform = '';
       if (moved) {
+        // Position définitive (données + style), une seule fois
+        el.style.left = rack.x + 'px';
+        el.style.top  = rack.y + 'px';
         pushHistory();
         saveState();
       }
@@ -980,7 +1345,8 @@ function renderRack(rack) {
           deviceId: tpl.id,
           name: tpl.name,
           sizeU: tpl.sizeU,
-          photo: tpl.photo,
+          photo: '',   // pas de copie : rendu via la photo du modèle (instPhoto)
+          cat: normCat(tpl.cat),
           slot,
           brand: tpl.brand || '',
           model: tpl.model || '',
@@ -1103,6 +1469,16 @@ function renderRack(rack) {
 }
 
 /* ---------- Device (exemplaire monté dans une baie) ---------- */
+
+// Photo d'un exemplaire : la sienne, sinon celle du modèle de la bibliothèque.
+// Les exemplaires ne dupliquuent plus la photo (des Ko par device dans l'état) :
+// la bibliothèque reste la source visuelle, l'instance peut surcharger.
+function instPhoto(inst) {
+  if (inst.photo) return inst.photo;
+  const tpl = inst.deviceId && state.devices.find(d => d.id === inst.deviceId);
+  return tpl?.photo || null;
+}
+
 function renderDevice(rack, inst) {
   const dev = document.createElement('div');
   dev.className = 'device';
@@ -1113,11 +1489,13 @@ function renderDevice(rack, inst) {
   // pas déplaçables : cela évite que le glisser natif n'avale les clics de ports.
   dev.draggable = !labelMode && !cablingMode;
 
-  if (inst.photo) {
+  const photo = instPhoto(inst);
+  if (photo) {
     const img = document.createElement('img');
-    img.src = inst.photo;
+    img.src = photo;
     img.alt = inst.name;
     img.draggable = false;
+    img.decoding = 'async';   // ne bloque pas le thread principal au décodage
     dev.appendChild(img);
   } else {
     const face = document.createElement('div');
@@ -1767,6 +2145,7 @@ $('#btn-new-device').addEventListener('click', () => {
   $('#d-save').textContent = 'Créer le device';
   $('#d-name').value = '';
   $('#d-size').value = '1';
+  $('#d-cat').value = 'other';
   D_INV_IDS.forEach(id => { $(id).value = ''; });
   $('#d-watts').value = '';
   $('#d-kg').value = '';
@@ -1788,6 +2167,7 @@ function openEditDeviceModal(device) {
   $('#d-save').textContent = 'Enregistrer les modifications';
   $('#d-name').value = device.name;
   $('#d-size').value = String(device.sizeU);
+  $('#d-cat').value = normCat(device.cat);
   $('#d-brand').value = device.brand || '';
   $('#d-model').value = device.model || '';
   $('#d-ref').value = device.partRef || '';
@@ -1906,6 +2286,7 @@ $('#d-save').addEventListener('click', () => {
   const sizeU = parseInt($('#d-size').value, 10) || 1;
   const usePorts = $('#d-ports-use').checked && modalPorts.length > 0;
   const inv = {
+    cat: normCat($('#d-cat').value),
     brand: $('#d-brand').value.trim().slice(0, 40),
     model: $('#d-model').value.trim().slice(0, 60),
     partRef: $('#d-ref').value.trim().slice(0, 60),
@@ -1935,7 +2316,9 @@ $('#d-save').addEventListener('click', () => {
       }
     }
   } else {
-    // Mode création : ajouter un nouveau device
+    // Mode création : ajouter un nouveau device.
+    // Si la catégorie « Autre » est restée par défaut, on la devine depuis le nom.
+    if (inv.cat === 'other') inv.cat = guessCatFromName(name) || 'other';
     state.devices.push({
       id: uid(), name, sizeU, photo: modalPhoto, ...inv,
       ports: usePorts ? modalPorts.map((p, i) => ({
@@ -2023,12 +2406,18 @@ function fillDevicePopover() {
   if (!rack || !inst) { hideDevicePopover(); return; }
   $('#dp-title').textContent = inst.name;
   $('#dp-sub').textContent = `${rack.name} · U${inst.slot + 1}${inst.sizeU > 1 ? '–U' + (inst.slot + inst.sizeU) : ''}`;
-  $('#dp-thumb').innerHTML = inst.photo
-    ? `<img src="${inst.photo}" alt="">`
+  $('#dp-thumb').innerHTML = instPhoto(inst)
+    ? `<img src="${instPhoto(inst)}" alt="">`
     : '<span>▤</span>';
   dpSet('#dp-name', inst.name);
   dpSet('#dp-size', inst.sizeU + 'U');
   dpSet('#dp-slot', 'U' + (inst.slot + 1));
+  dpSet('#dp-cat', `${catIcon(inst.cat)} ${catLabel(inst.cat)}`);
+  // Zone de switching : uniquement pour les switchs et bornes WiFi
+  const isSwCat = ['switch', 'ap'].includes(normCat(inst.cat));
+  const zoneRow = $('#dp-zone-row');
+  if (zoneRow) zoneRow.style.display = isSwCat ? '' : 'none';
+  dpSet('#dp-zone', isSwCat ? (zoneNameOf(active(), inst) || '—') : '—');
   dpSet('#dp-brand', inst.brand || '—');
   dpSet('#dp-model', inst.model || '—');
   dpSet('#dp-ref', inst.partRef || '—');
@@ -2238,6 +2627,52 @@ function dpTextField(sel, field, maxLen) {
     dpAfterChange(inst);
   });
 }
+// Catégorie : édition par liste déroulante
+dpEditSpan('#dp-cat', inst => {
+  const s = document.createElement('select');
+  DEV_CATEGORIES.forEach(([id, ico, lbl]) => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = `${ico} ${lbl}`;
+    if (id === normCat(inst.cat)) o.selected = true;
+    s.appendChild(o);
+  });
+  return s;
+}, val => {
+  const { inst } = dpFind();
+  if (!inst) return;
+  const cat = normCat(val);
+  if (cat === normCat(inst.cat)) { fillDevicePopover(); return; }
+  pushHistory();
+  inst.cat = cat;
+  dpAfterChange(inst);
+});
+
+// Zone de switching (switch / AP) : édition par liste déroulante
+dpEditSpan('#dp-zone', inst => {
+  const s = document.createElement('select');
+  const o0 = document.createElement('option');
+  o0.value = '';
+  o0.textContent = '— hors zone —';
+  s.appendChild(o0);
+  (normLldInfo(active()).swZones || []).forEach(z => {
+    const o = document.createElement('option');
+    o.value = z.id;
+    o.textContent = z.name;
+    if (z.id === (inst.zone || '')) o.selected = true;
+    s.appendChild(o);
+  });
+  return s;
+}, val => {
+  const { inst } = dpFind();
+  if (!inst) return;
+  const zone = String(val || '');
+  if (zone === (inst.zone || '')) { fillDevicePopover(); return; }
+  pushHistory();
+  inst.zone = zone;
+  dpAfterChange(inst);
+});
+
 dpTextField('#dp-brand', 'brand', 40);
 dpTextField('#dp-model', 'model', 60);
 dpTextField('#dp-ref', 'partRef', 60);
@@ -2278,6 +2713,7 @@ document.addEventListener('keydown', e => {
     hideCablePopoverSafe();
     hideDevicePopover();
     $('#device-modal').classList.add('hidden');
+    $('#lld-modal').classList.add('hidden');
   }
 });
 /* ============================================================
@@ -2361,6 +2797,8 @@ function openWorkspace(id) {
   state.activeWorkspaceId = ws.id;
   saveState();
   pendingPort = null;
+  siteFilter = 'all';
+  topoFlowFilter = '';
   hideCablePopoverSafe();
 
   hidePortPopover();
@@ -2369,6 +2807,7 @@ function openWorkspace(id) {
 
   hideHome();
   renderBoard();
+  renderSiteFilter();   // options du filtre = sites du workspace ouvert
   applyWorkspaceView();
 
   // Le viewport peut finir son recalcul de taille après la fermeture de
@@ -2594,6 +3033,7 @@ function handlePortClickCabling(clientX, clientY, rack, inst, port) {
     id: uid(),
     name: nextCableId(ws),
     color: selectedCableColor,
+    domain: '',
     a: { rackId: pendingPort.rack.id, instId: pendingPort.inst.id, portId: pendingPort.port.id },
     b: { rackId: rack.id, instId: inst.id, portId: port.id }
   };
@@ -2647,6 +3087,7 @@ function openCablePopover(cable, clientX, clientY, isNew = false) {
 
   $('#cl-title').textContent = isNew ? 'Nouveau câble' : 'Câble';
   $('#c-name').value = cable.name || '';
+  $('#c-domain').value = cable.domain || '';
   selectedCableColor = cable.color || CABLE_COLORS[0].hex;
 
   const colorsEl = $('#c-colors');
@@ -2691,6 +3132,7 @@ $('#c-save').addEventListener('click', () => {
   pushHistory();
   cable.name = name;
   cable.color = selectedCableColor;
+  cable.domain = $('#c-domain').value;
   hideCablePopover();
   touchWorkspace(active());
   saveState();
@@ -2757,7 +3199,15 @@ function renderCableList() {
         <span class="cp-cable-path"></span>
       </span>
       <span class="cp-cable-del" title="Supprimer ce câble">✕</span>`;
-    row.querySelector('.cp-cable-id').textContent = cable.name || 'Sans ID';
+    const idEl = row.querySelector('.cp-cable-id');
+    idEl.textContent = cable.name || 'Sans ID';
+    if (cable.domain) {
+      const tag = document.createElement('span');
+      tag.className = 'cp-domain-tag';
+      tag.textContent = cableDomainLabel(cable.domain);
+      tag.title = `Domaine : ${cableDomainLabel(cable.domain)}`;
+      idEl.appendChild(tag);
+    }
     row.querySelector('.cp-cable-path').textContent =
       `${ea.port.name} (${ea.inst.name}) → ${eb.port.name} (${eb.inst.name})`;
 
@@ -2847,11 +3297,43 @@ function setCablingMode(on) {
 }
 
 /* ============================================================
-   INFOS DOSSIER LLD — client, auteur, versions, registre VLANs
+   INFOS DOSSIER LLD — onglets Document / Réseau
+   (Sites et Chapitres arriveront avec les lots 2 et 5)
    ============================================================ */
 
 const LLD_REV_COLS = [['rev', 'Rév', 52], ['date', 'Date', 108], ['author', 'Auteur', 128], ['note', 'Modifications', 'flex']];
-const LLD_VLAN_COLS = [['vid', 'VLAN', 52], ['name', 'Nom', 108], ['subnet', 'Subnet', 132], ['gw', 'Passerelle', 118], ['purpose', 'Usage', 'flex']];
+// Colonne « Site » : libre pour l'instant, sera reliée aux sites déclarés au lot 2
+const LLD_VLAN_COLS = [['vid', 'VLAN', 44], ['name', 'Nom', 96], ['site', 'Site', 80], ['subnet', 'Subnet', 120], ['gw', 'Passerelle', 106], ['purpose', 'Usage', 'flex']];
+const LLD_NOMEN_COLS = [['type', "Type d'objet", 150], ['prefix', 'Préfixe', 78], ['example', 'Exemple', 140], ['rule', 'Règle de nommage', 'flex']];
+// Champs FAI (ch. 5) et interconnexion (ch. 6) : [clé, sélecteur HTML]
+const LLD_FAI_FIELDS = [
+  ['operator', '#lld-fai-operator'], ['offer', '#lld-fai-offer'], ['linkType', '#lld-fai-type'],
+  ['down', '#lld-fai-down'], ['up', '#lld-fai-up'], ['publicBlock', '#lld-fai-block'],
+  ['cpe', '#lld-fai-cpe'], ['cpeIp', '#lld-fai-cpeip'], ['notes', '#lld-fai-notes']
+];
+const LLD_IC_FIELDS = [
+  ['tech', '#lld-ic-tech'], ['epA', '#lld-ic-epa'], ['epB', '#lld-ic-epb'],
+  ['localSubnets', '#lld-ic-local'], ['remoteSubnets', '#lld-ic-remote'],
+  ['routing', '#lld-ic-routing'], ['encryption', '#lld-ic-enc'], ['notes', '#lld-ic-notes']
+];
+// Notes de configuration par chapitre (clé = domaine du chapitre)
+const LLD_NOTE_FIELDS = [
+  ['firewall', '#lld-note-firewall'], ['switching', '#lld-note-switching'],
+  ['server', '#lld-note-server'], ['storage', '#lld-note-storage'],
+  ['ids', '#lld-note-ids'], ['cctv', '#lld-note-cctv'], ['pointage', '#lld-note-pointage']
+];
+
+// Types devinés à partir des préfixes les plus courants (bouton « Générer »)
+const NOMEN_GUESS = {
+  FW: 'Pare-feu', SW: 'Switch', AP: 'Borne WiFi', SRV: 'Serveur',
+  NAS: 'Stockage (NAS)', SAN: 'Stockage (SAN)', STO: 'Stockage',
+  IDS: 'Intrusion (IDS)', IPS: 'Intrusion (IPS)',
+  CAM: 'CCTV (caméra)', NVR: 'CCTV (enregistreur)', DVR: 'CCTV (enregistreur)', CCTV: 'CCTV',
+  PTG: 'Pointage', SPO: 'Pointage (SPO)', PTA: 'Pointage',
+  RT: 'Routeur', RTR: 'Routeur', GW: 'Passerelle',
+  CAB: 'Cordon / câble', PDU: 'Énergie (PDU)', UPS: 'Onduleur',
+  ODF: 'Brassage (panneau)', IDF: 'Brassage (panneau)'
+};
 
 function lldRowsFrom(container) {
   return [...container.querySelectorAll('.lld-row')].map(row => {
@@ -2884,6 +3366,114 @@ function lldAddRow(container, cols, data = {}) {
   container.appendChild(row);
 }
 
+// ---- Lignes « site » (2 lignes : nom/adresse/contacts + description) ----
+function lldAddSiteRow(container, site = {}) {
+  const card = document.createElement('div');
+  card.className = 'lld-site';
+  card.dataset.id = site.id || '';
+  card.innerHTML = `
+    <div class="lld-row">
+      <input type="text" data-k="name" placeholder="Nom (ex : Site A)" maxlength="40" style="width:112px">
+      <input type="text" data-k="address" placeholder="Adresse" maxlength="80" class="lld-flex">
+      <input type="text" data-k="contact" placeholder="Contacts" maxlength="80" style="width:118px">
+      <button type="button" class="lld-row-del" title="Supprimer ce site">✕</button>
+    </div>
+    <div class="lld-row">
+      <input type="text" data-k="desc" placeholder="Description / notes" maxlength="200" class="lld-flex">
+    </div>`;
+  card.querySelectorAll('input').forEach(inp => { inp.value = site[inp.dataset.k] || ''; });
+  card.querySelector('.lld-row-del').addEventListener('click', () => card.remove());
+  container.appendChild(card);
+}
+
+function lldSitesFrom(container) {
+  return [...container.querySelectorAll('.lld-site')].map(card => {
+    const o = { id: card.dataset.id || '' };
+    card.querySelectorAll('input').forEach(inp => { o[inp.dataset.k] = inp.value; });
+    return o;
+  });
+}
+
+// ---- Lignes « zone de switching » (nom + réordonnancement) ----
+function lldAddZoneRow(container, zone = {}) {
+  const row = document.createElement('div');
+  row.className = 'lld-row lld-zone-row';
+  row.dataset.id = zone.id || '';
+  row.innerHTML = `
+    <button type="button" class="lld-zone-up" title="Monter cette zone">↑</button>
+    <button type="button" class="lld-zone-down" title="Descendre cette zone">↓</button>
+    <input type="text" data-k="name" placeholder="Nom de la zone (ex : LAN Site A)" maxlength="40" class="lld-flex">
+    <button type="button" class="lld-row-del" title="Supprimer cette zone">✕</button>`;
+  const nameInp = row.querySelector('input');
+  nameInp.value = zone.name || '';
+  row.querySelector('.lld-zone-up').addEventListener('click', () => {
+    const prev = row.previousElementSibling;
+    if (prev && prev.classList.contains('lld-zone-row')) container.insertBefore(row, prev);
+  });
+  row.querySelector('.lld-zone-down').addEventListener('click', () => {
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('lld-zone-row')) container.insertBefore(next, row);
+  });
+  row.querySelector('.lld-row-del').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function lldZonesFrom(container) {
+  return [...container.querySelectorAll('.lld-zone-row')].map(r => ({
+    id: r.dataset.id || '',
+    name: r.querySelector('input').value
+  }));
+}
+
+// ---- Lignes « flux » (2 lignes : nom/source/destination + protocole/sens/usage) ----
+function lldAddFlowRow(container, flow = {}) {
+  const card = document.createElement('div');
+  card.className = 'lld-flow';
+  card.dataset.id = flow.id || '';
+  card.innerHTML = `
+    <div class="lld-row">
+      <input type="text" data-k="name" placeholder="Nom du flux" maxlength="60" style="width:148px">
+      <input type="text" data-k="src" placeholder="Source (ex : LAN Site A, SRV-01…)" maxlength="80" class="lld-flex">
+      <input type="text" data-k="dst" placeholder="Destination (ex : Internet, FW-01…)" maxlength="80" class="lld-flex">
+      <button type="button" class="lld-row-del" title="Supprimer ce flux">✕</button>
+    </div>
+    <div class="lld-row">
+      <input type="text" data-k="proto" placeholder="Protocole / ports" maxlength="60" style="width:148px">
+      <select data-k="sens" style="width:140px" title="Sens du flux">
+        <option value="bi">⇄ Bidirectionnel</option>
+        <option value="uni">→ Unidirectionnel</option>
+      </select>
+      <input type="text" data-k="usage" placeholder="Usage / description" maxlength="120" class="lld-flex">
+    </div>`;
+  card.querySelectorAll('[data-k]').forEach(el => {
+    if (el.dataset.k === 'sens') el.value = flow.sens === 'uni' ? 'uni' : 'bi';
+    else el.value = flow[el.dataset.k] || '';
+  });
+  card.querySelector('.lld-row-del').addEventListener('click', () => card.remove());
+  container.appendChild(card);
+}
+
+function lldFlowsFrom(container) {
+  return [...container.querySelectorAll('.lld-flow')].map(card => {
+    const o = { id: card.dataset.id || '' };
+    card.querySelectorAll('[data-k]').forEach(el => { o[el.dataset.k] = el.value; });
+    return o;
+  });
+}
+
+// ---- Onglets de la modale ----
+document.querySelectorAll('#lld-modal .lld-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('#lld-modal .lld-tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('#lld-modal .lld-pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== btn.dataset.tab));
+  });
+});
+function lldShowTab(name) {
+  const btn = document.querySelector(`#lld-modal .lld-tab[data-tab="${name}"]`);
+  if (btn && !btn.disabled) btn.click();
+}
+
 function openLldModal() {
   const ws = active();
   if (!ws) return;
@@ -2891,12 +3481,31 @@ function openLldModal() {
   $('#lld-client').value = L.client;
   $('#lld-author').value = L.author;
   $('#lld-version').value = L.version;
+  $('#lld-objectif').value = L.objectif;
+  $('#lld-existant').value = L.existant;
+  $('#lld-architecture').value = L.architecture;
   const revs = $('#lld-revs');
   revs.innerHTML = '';
   L.revs.forEach(r => lldAddRow(revs, LLD_REV_COLS, r));
+  const nomen = $('#lld-nomen');
+  nomen.innerHTML = '';
+  L.nomen.forEach(r => lldAddRow(nomen, LLD_NOMEN_COLS, r));
   const vlans = $('#lld-vlans');
   vlans.innerHTML = '';
   L.vlans.forEach(v => lldAddRow(vlans, LLD_VLAN_COLS, v));
+  LLD_FAI_FIELDS.forEach(([k, sel]) => { $(sel).value = L.fai[k] || ''; });
+  LLD_IC_FIELDS.forEach(([k, sel]) => { $(sel).value = L.interco[k] || ''; });
+  const zonesEl = $('#lld-zones');
+  zonesEl.innerHTML = '';
+  L.swZones.forEach(z => lldAddZoneRow(zonesEl, z));
+  LLD_NOTE_FIELDS.forEach(([k, sel]) => { $(sel).value = L.catNotes[k] || ''; });
+  const flowsEl = $('#lld-flows');
+  flowsEl.innerHTML = '';
+  (ws.flows || []).forEach(f => lldAddFlowRow(flowsEl, f));
+  const sitesEl = $('#lld-sites');
+  sitesEl.innerHTML = '';
+  normSites(ws).forEach(s => lldAddSiteRow(sitesEl, s));
+  lldShowTab('doc');
   $('#lld-modal').classList.remove('hidden');
   $('#lld-client').focus();
 }
@@ -2913,6 +3522,50 @@ $('#lld-add-rev').addEventListener('click', () => {
   [...revs.querySelectorAll('.lld-row')].pop().querySelector('input').focus();
 });
 $('#lld-add-vlan').addEventListener('click', () => lldAddRow($('#lld-vlans'), LLD_VLAN_COLS, {}));
+$('#lld-add-nomen').addEventListener('click', () => {
+  lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {});
+  [...$('#lld-nomen').querySelectorAll('.lld-row')].pop().querySelector('input').focus();
+});
+$('#lld-add-site').addEventListener('click', () => {
+  lldAddSiteRow($('#lld-sites'), {});
+  const cards = $('#lld-sites').querySelectorAll('.lld-site');
+  cards[cards.length - 1].querySelector('input').focus();
+});
+$('#lld-add-zone').addEventListener('click', () => {
+  lldAddZoneRow($('#lld-zones'), {});
+  const rows = $('#lld-zones').querySelectorAll('.lld-zone-row');
+  rows[rows.length - 1].querySelector('input').focus();
+});
+$('#lld-add-flow').addEventListener('click', () => {
+  lldAddFlowRow($('#lld-flows'), {});
+  const cards = $('#lld-flows').querySelectorAll('.lld-flow');
+  cards[cards.length - 1].querySelector('input').focus();
+});
+
+// Détecte les préfixes utilisés par les devices et câbles du workspace
+// (ex : « SW-CORE-01 » → préfixe SW) et les ajoute à la nomenclature.
+$('#lld-gen-nomen').addEventListener('click', () => {
+  const ws = active();
+  if (!ws) return;
+  const L = normLldInfo(ws);
+  const known = new Set(L.nomen.map(r => r.prefix.trim().toUpperCase()).filter(Boolean));
+  const names = [];
+  ws.racks.forEach(r => r.instances.forEach(i => names.push(String(i.name || ''))));
+  (ws.cables || []).forEach(c => names.push(String(c.name || '')));
+  const found = {};   // préfixe -> exemple le plus court
+  names.forEach(n => {
+    const m = n.match(/^([A-Za-z]{2,5})-/);
+    if (!m) return;
+    const pfx = m[1].toUpperCase();
+    if (!found[pfx] || n.length < found[pfx].length) found[pfx] = n;
+  });
+  const missing = Object.keys(found).filter(p => !known.has(p)).sort();
+  if (!missing.length) { alert('Aucun nouveau préfixe détecté (ou tous sont déjà dans la nomenclature).'); return; }
+  missing.forEach(p => lldAddRow($('#lld-nomen'), LLD_NOMEN_COLS, {
+    type: NOMEN_GUESS[p] || '', prefix: p, example: found[p]
+  }));
+  alert(`${missing.length} préfixe(s) ajouté(s) à la nomenclature : ${missing.join(', ')}.\nVérifiez le type d'objet et complétez la règle de nommage.`);
+});
 
 // Ajoute au registre les VLANs utilisés sur les ports mais pas encore enregistrés
 $('#lld-detect-vlans').addEventListener('click', () => {
@@ -2948,11 +3601,68 @@ $('#lld-save').addEventListener('click', () => {
   L.client = $('#lld-client').value.trim().slice(0, 80);
   L.author = $('#lld-author').value.trim().slice(0, 80);
   L.version = $('#lld-version').value.trim().slice(0, 80);
+  L.objectif = $('#lld-objectif').value.slice(0, 4000);
+  L.existant = $('#lld-existant').value.slice(0, 4000);
+  L.architecture = $('#lld-architecture').value.slice(0, 4000);
   L.revs = lldRowsFrom($('#lld-revs')).filter(r => r.rev.trim() || r.note.trim());
+  L.nomen = lldRowsFrom($('#lld-nomen')).filter(r => r.type.trim() || r.prefix.trim());
   L.vlans = lldRowsFrom($('#lld-vlans')).filter(v => v.vid.trim() || v.name.trim());
+  LLD_FAI_FIELDS.forEach(([k, sel]) => { L.fai[k] = $(sel).value.slice(0, 2000); });
+  LLD_IC_FIELDS.forEach(([k, sel]) => { L.interco[k] = $(sel).value.slice(0, 2000); });
+  LLD_NOTE_FIELDS.forEach(([k, sel]) => { L.catNotes[k] = $(sel).value.slice(0, 2000); });
+
+  // Zones de switching (ch. 8) : on reserialize la liste
+  const prevZoneIds = new Set(L.swZones.map(z => z.id));
+  L.swZones = lldZonesFrom($('#lld-zones'))
+    .filter(z => z.name.trim())
+    .map(z => ({ id: z.id && prevZoneIds.has(z.id) ? z.id : uid(), name: z.name.trim().slice(0, 40) }));
+  const zoneIds = new Set(L.swZones.map(z => z.id));
+  let dezoned = 0;
+  ws.racks.forEach(r => r.instances.forEach(i => {
+    if (i.zone && !zoneIds.has(i.zone)) { i.zone = ''; dezoned++; }
+  }));
+  if (dezoned) {
+    alert(`${dezoned} device(s) switching étaient rattaché(s) à une zone supprimée :\nils sont maintenant « hors zone ».`);
+  }
+
+  // Flux réseau (ch. 14)
+  const prevFlowIds = new Set((ws.flows || []).map(f => f.id));
+  ws.flows = lldFlowsFrom($('#lld-flows'))
+    .filter(f => f.name.trim() || f.src.trim() || f.dst.trim())
+    .map(f => ({
+      id: f.id && prevFlowIds.has(f.id) ? f.id : uid(),
+      name: f.name.trim().slice(0, 60),
+      src: f.src.trim().slice(0, 80),
+      dst: f.dst.trim().slice(0, 80),
+      proto: f.proto.trim().slice(0, 60),
+      sens: f.sens === 'uni' ? 'uni' : 'bi',
+      usage: f.usage.trim().slice(0, 120)
+    }));
+
+  // Sites : on reserialize la liste (les nouveaux reçoivent un id généré)
+  const prevIds = new Set(ws.sites.map(s => s.id));
+  ws.sites = lldSitesFrom($('#lld-sites'))
+    .filter(s => s.name.trim())
+    .map(s => ({
+      id: s.id && prevIds.has(s.id) ? s.id : uid(),
+      name: s.name.trim().slice(0, 40),
+      address: s.address.trim().slice(0, 80),
+      contact: s.contact.trim().slice(0, 80),
+      desc: s.desc.trim().slice(0, 200)
+    }));
+  // Racks pointant vers un site supprimé -> détachés
+  const newIds = new Set(ws.sites.map(s => s.id));
+  let detached = 0;
+  ws.racks.forEach(r => { if (r.siteId && !newIds.has(r.siteId)) { r.siteId = ''; detached++; } });
+  if (detached) {
+    alert(`${detached} rack(s) étaient rattaché(s) à un site supprimé :\nils sont maintenant « sans site ».`);
+  }
+
   touchWorkspace(ws);
   saveState();
   $('#lld-modal').classList.add('hidden');
+  renderBoard();        // met à jour les sélecteurs/pastilles de site des racks
+  renderSiteFilter();
 });
 
 /* ============================================================
@@ -3014,6 +3724,11 @@ function setBoardMode(mode) {
 }
 $('#view-elev').addEventListener('click', () => setBoardMode('elev'));
 $('#view-topo').addEventListener('click', () => setBoardMode('topo'));
+// Mise en évidence des équipements d'un flux dans la vue Topologie
+$('#topo-flow-sel').addEventListener('change', e => {
+  topoFlowFilter = e.target.value;
+  renderBoard();
+});
 
 // Retrouve { rack, inst } d'un noeud
 function topoInstOf(ws, node) {
@@ -3031,6 +3746,26 @@ function renderTopology(ws) {
   $('#board-empty').classList.add('hidden');
   $('#topo-toolbar').classList.remove('hidden');
   $('#topo-empty').classList.toggle('hidden', topo.nodes.length > 0);
+
+  // Sélecteur de flux : met en évidence les équipements source/destination
+  const flowSel = $('#topo-flow-sel');
+  let flowMatch = null;
+  if (flowSel) {
+    const flows = ws.flows || [];
+    if (topoFlowFilter && !flows.some(f => f.id === topoFlowFilter)) topoFlowFilter = '';
+    flowSel.classList.toggle('hidden', flows.length === 0);
+    flowSel.innerHTML = '<option value="">🔄 Flux : tous</option>' +
+      flows.map(f => `<option value="${f.id}">${escapeHtml(f.name || f.src || f.dst || 'Flux')}</option>`).join('');
+    flowSel.value = topoFlowFilter;
+    if (topoFlowFilter) {
+      const flow = flows.find(f => f.id === topoFlowFilter);
+      if (flow) {
+        flowMatch = new Set(topo.nodes
+          .filter(n => { const info = topoInstOf(ws, n); return info && flowMatchesInst(flow, info.inst); })
+          .map(n => n.id));
+      }
+    }
+  }
 
   // Couche SVG des liens (sous les noeuds)
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -3063,6 +3798,9 @@ function renderTopology(ws) {
         let x1 = na.x + TOPO_NW / 2, y1 = na.y + TOPO_NH / 2;
         let x2 = nb.x + TOPO_NW / 2, y2 = nb.y + TOPO_NH / 2;
         const color = l.color || '#60a5fa';
+        // Flux sélectionné : atténuer les liens dont les deux extrémités
+        // ne font pas partie du flux
+        const dimL = flowMatch && !(flowMatch.has(l.a) && flowMatch.has(l.b));
 
         // Décaler les liens multiples entre les mêmes noeuds
         if (count > 1) {
@@ -3086,6 +3824,7 @@ function renderTopology(ws) {
         line.setAttribute('stroke', color);
         line.setAttribute('stroke-width', '2.5');
         if (l.style === 'dashed') line.setAttribute('stroke-dasharray', '7 5');
+        if (dimL) line.setAttribute('opacity', '0.15');
         svg.appendChild(line);
 
         const label = [l.label, l.speed, l.vlan && 'VLAN ' + l.vlan].filter(Boolean).join(' · ');
@@ -3101,6 +3840,7 @@ function renderTopology(ws) {
           t.setAttribute('stroke', '#0b0d11');
           t.setAttribute('stroke-width', '3.5');
           t.textContent = label;
+          if (dimL) t.setAttribute('opacity', '0.25');
           svg.appendChild(t);
         }
 
@@ -3125,11 +3865,12 @@ function renderTopology(ws) {
     const inst = info?.inst;
     const el = document.createElement('div');
     el.className = 'topo-node' + (topoLinkPending === n.id ? ' pending' : '');
+    if (flowMatch && !flowMatch.has(n.id)) el.classList.add('topo-dim');
     el.dataset.nodeId = n.id;
     el.style.left = n.x + 'px';
     el.style.top = n.y + 'px';
     el.innerHTML = `
-      <div class="tn-head"><span class="tn-led"></span><span class="tn-name">${escapeHtml(inst?.name || '?')}</span></div>
+      <div class="tn-head"><span class="tn-led"></span><span class="tn-name">${catIcon(inst?.cat)} ${escapeHtml(inst?.name || '?')}</span></div>
       <div class="tn-sub">${escapeHtml([inst?.brand, inst?.model].filter(Boolean).join(' ') || '—')}</div>
       <div class="tn-sub2">${escapeHtml(info ? `${info.rack.name} · U${inst.slot + 1}` : '')}${inst?.ipMgmt ? ' · ' + escapeHtml(inst.ipMgmt) : ''}</div>`;
 
@@ -3138,17 +3879,28 @@ function renderTopology(ws) {
       if ((e.button !== 0 && e.pointerType === 'mouse') || topoLinkPending) return;
       e.stopPropagation();
       const startX = e.clientX, startY = e.clientY, ox = n.x, oy = n.y;
+      let nodeRaf = 0;
       el.setPointerCapture(e.pointerId);
       const onMove = ev => {
         n.x = Math.max(0, ox + (ev.clientX - startX) / view.scale);
         n.y = Math.max(0, oy + (ev.clientY - startY) / view.scale);
-        el.style.left = n.x + 'px';
-        el.style.top = n.y + 'px';
-        drawLinks();
+        // Une seule mise à jour visuelle par frame (drawLinks reconstruit le SVG)
+        if (!nodeRaf) {
+          nodeRaf = requestAnimationFrame(() => {
+            nodeRaf = 0;
+            el.style.left = n.x + 'px';
+            el.style.top = n.y + 'px';
+            drawLinks();
+          });
+        }
       };
       const onUp = () => {
         el.removeEventListener('pointermove', onMove);
         el.removeEventListener('pointerup', onUp);
+        if (nodeRaf) { cancelAnimationFrame(nodeRaf); nodeRaf = 0; }
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+        drawLinks();
         touchWorkspace(active());
         saveState();
       };
@@ -3339,7 +4091,7 @@ async function renderPlanCanvas() {
   // Préchargement de toutes les photos de devices
   const imgCache = new Map();
   const imgUrls = new Set();
-  ws.racks.forEach(r => r.instances.forEach(i => { if (i.photo) imgUrls.add(i.photo); }));
+  ws.racks.forEach(r => r.instances.forEach(i => { const ph = instPhoto(i); if (ph) imgUrls.add(ph); }));
   await Promise.all([...imgUrls].map(url => new Promise(res => {
     const im = new Image();
     im.onload = () => { imgCache.set(url, im); res(); };
@@ -3419,6 +4171,18 @@ async function renderPlanCanvas() {
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillText(truncate(ctx, rack.name, RACK_W - 90), x + 30, y + 15);
+    // Site du rack : pastille colorée + nom, après le titre
+    const sName = siteName(ws, rack);
+    if (sName) {
+      const tW = ctx.measureText(truncate(ctx, rack.name, RACK_W - 90)).width;
+      const sx = x + 30 + tW + 8;
+      ctx.fillStyle = siteColor(ws, rack) || '#9aa3b2';
+      roundRect(sx, y + 11, 6, 6, 2);
+      ctx.fill();
+      ctx.fillStyle = '#aab4c4';
+      ctx.font = '9.5px "Segoe UI", sans-serif';
+      ctx.fillText(truncate(ctx, sName, Math.max(30, RACK_W - 110 - tW)), sx + 9, y + 15);
+    }
 
     // Bâti
     const by = y + 28;
@@ -3467,7 +4231,8 @@ async function renderPlanCanvas() {
       const dh = inst.sizeU * U_H;
       ctx.save();
       ctx.beginPath(); ctx.rect(inX, dy, inW, dh); ctx.clip();
-      const img = inst.photo ? imgCache.get(inst.photo) : null;
+      const ph = instPhoto(inst);
+      const img = ph ? imgCache.get(ph) : null;
       if (img) {
         ctx.drawImage(img, inX, dy, inW, dh);
       } else {
@@ -3783,31 +4548,142 @@ function sortedRacks(ws) {
 }
 
 function invRows(ws) {
-  const rows = [['Rack', 'Étage', 'Taille', 'Nom', 'Marque', 'Modèle', 'Référence',
+  const rows = [['Rack', 'Site', 'Étage', 'Taille', 'Nom', 'Catégorie', 'Marque', 'Modèle', 'Référence',
                  'N° série', 'IP mgmt', 'VLAN(s)', 'Puissance (W)', 'Poids (kg)', 'Ports']];
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
-    rows.push([rack.name, slotLabel(inst), inst.sizeU + 'U', inst.name,
+    rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.sizeU + 'U', inst.name,
+               catLabel(inst.cat),
                inst.brand || '', inst.model || '', inst.partRef || '', inst.serial || '',
                inst.ipMgmt || '', inst.vlan || '',
                inst.watts || '', inst.weightKg || '', (inst.ports || []).length]);
   }
   return rows;
 }
-function cablingRows(ws) {
-  const rows = [['ID câble', 'Couleur',
-                 'Rack A', 'Device A', 'Port A', 'Étiquette A',
-                 'Rack B', 'Device B', 'Port B', 'Étiquette B']];
+// Récapitulatif des équipements par catégorie (ch. 3.1 du PDF)
+function catSummaryRows(ws) {
+  const rows = [['Catégorie', 'Nb', 'Modèles', 'Sites']];
+  const byCat = new Map();
+  for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
+    const c = normCat(inst.cat);
+    if (!byCat.has(c)) byCat.set(c, []);
+    byCat.get(c).push({ rack, inst });
+  }
+  const order = Object.fromEntries(DEV_CATEGORIES.map(([id], i) => [id, i]));
+  [...byCat.keys()].sort((a, b) => order[a] - order[b]).forEach(c => {
+    const items = byCat.get(c);
+    const models = [...new Set(items.map(x => [x.inst.brand, x.inst.model].filter(Boolean).join(' ')).filter(Boolean))];
+    const sites = [...new Set(items.map(x => siteName(ws, x.rack)).filter(Boolean))];
+    rows.push([`${catIcon(c)} ${catLabel(c)}`, items.length,
+               models.join(', ') || '\u2014', sites.join(', ') || '\u2014']);
+  });
+  return rows;
+}
+
+// Nom de la zone de switching d'un device posé (ch. 8)
+function zoneNameOf(ws, inst) {
+  const z = (ws?.lld?.swZones || []).find(x => x.id === (inst?.zone || ''));
+  return z ? z.name : '';
+}
+
+// Équipements d'un chapitre : filtrés par catégories (et par zone de switching).
+// zoneId = null -> toutes les zones ; '' -> hors zone ; sinon id de zone.
+function catEquipRows(ws, cats, zoneId = null) {
+  const rows = [['Rack', 'Site', 'Étage', 'Nom', 'Marque', 'Modèle', 'IP mgmt', 'VLAN(s)', 'Ports']];
+  for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
+    if (!cats.includes(normCat(inst.cat))) continue;
+    if (zoneId !== null && (inst.zone || '') !== zoneId) continue;
+    rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name,
+               inst.brand || '', inst.model || '', inst.ipMgmt || '', inst.vlan || '',
+               (inst.ports || []).length]);
+  }
+  return rows;
+}
+
+// Ports & adressage des équipements d'un chapitre
+function portsRowsByCat(ws, cats) {
+  const rows = [['Rack', 'Site', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN']];
+  for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
+    if (!cats.includes(normCat(inst.cat))) continue;
+    for (const p of (inst.ports || [])) {
+      rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name, p.name,
+                 p.label || '', p.ip || '', p.vlan || '']);
+    }
+  }
+  return rows;
+}
+
+// ---------- Flux réseau (ch. 14) ----------
+// Tableau de la matrice des flux (PDF / exports)
+function flowsRows(ws) {
+  const rows = [['Flux', 'Source', 'Destination', 'Protocole / ports', 'Sens', 'Usage']];
+  for (const f of (ws?.flows || [])) {
+    rows.push([f.name || '', f.src || '', f.dst || '', f.proto || '',
+               f.sens === 'uni' ? 'Unidirectionnel' : 'Bidirectionnel', f.usage || '']);
+  }
+  return rows;
+}
+
+// Un flux « concerne » un device si son nom apparaît dans la source ou la
+// destination (insensible à la casse) — utilisé pour la mise en évidence
+// des équipements d'un flux dans la vue Topologie.
+function flowMatchesInst(flow, inst) {
+  const hay = `${flow?.src || ''} ${flow?.dst || ''}`.toLowerCase();
+  const name = String(inst?.name || '').trim().toLowerCase();
+  return !!name && hay.includes(name);
+}
+
+// Sites (feuille Excel / CSV)
+function sitesRows(ws) {
+  const rows = [['Site', 'Adresse', 'Contacts', 'Description', 'Racks']];
+  for (const s of (ws?.sites || [])) {
+    const nb = (ws?.racks || []).filter(r => r.siteId === s.id).length;
+    rows.push([s.name, s.address || '', s.contact || '', s.desc || '', nb]);
+  }
+  return rows;
+}
+
+// Nomenclature (feuille Excel / CSV)
+function nomenRows(ws) {
+  const L = normLldInfo(ws || {});
+  const rows = [["Type d'objet", 'Préfixe', 'Exemple', 'Règle de nommage']];
+  L.nomen.forEach(r => rows.push([r.type, r.prefix, r.example, r.rule]));
+  return rows;
+}
+
+// Adressage IP global : registre VLANs & subnets (feuille Excel / CSV)
+function addressingRows(ws) {
+  const L = normLldInfo(ws || {});
+  const rows = [['VLAN', 'Nom', 'Site', 'Subnet', 'Passerelle', 'Usage']];
+  L.vlans.forEach(v => rows.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
+  return rows;
+}
+
+// Corps commun du tableau de câblage. domain = null : tous les câbles ;
+// withDomain : ajoute la colonne « Domaine » (chapitre du dossier LLD).
+function cablingRowsBase(ws, domain = null, withDomain = false) {
+  const head = ['ID câble', 'Couleur'];
+  if (withDomain) head.push('Domaine');
+  head.push('Rack A', 'Device A', 'Port A', 'Étiquette A',
+            'Rack B', 'Device B', 'Port B', 'Étiquette B');
+  const rows = [head];
   const epDesc = ep => {
     const d = resolveEndpoint(ws, ep);
     return d ? [d.rack.name, d.inst.name, d.port.name, d.port.label || ''] : ['', '', '', ''];
   };
   for (const c of (ws?.cables || [])) {
-    rows.push([c.name || '', c.color || '', ...epDesc(c.a), ...epDesc(c.b)]);
+    if (domain !== null && (c.domain || '') !== domain) continue;
+    const r = [c.name || '', c.color || ''];
+    if (withDomain) r.push(cableDomainLabel(c.domain));
+    r.push(...epDesc(c.a), ...epDesc(c.b));
+    rows.push(r);
   }
   return rows;
 }
+function cablingRows(ws) { return cablingRowsBase(ws, null, true); }
+// Câbles d'un seul domaine (ch. 5.2 FAI, 6.2 interconnexion…) : sans la colonne Domaine
+function cablingRowsByDomain(ws, domain) { return cablingRowsBase(ws, domain, false); }
 function portsRows(ws) {
-  const rows = [['Rack', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble']];
+  const rows = [['Rack', 'Site', 'Étage', 'Device', 'Port', 'Étiquette', 'IP', 'VLAN', 'Câble']];
   const cableOf = (instId, portId) => {
     const c = (ws?.cables || []).find(cb =>
       (cb.a?.instId === instId && cb.a?.portId === portId) ||
@@ -3816,20 +4692,20 @@ function portsRows(ws) {
   };
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
     for (const p of (inst.ports || [])) {
-      rows.push([rack.name, slotLabel(inst), inst.name, p.name, p.label || '',
+      rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name, p.name, p.label || '',
                  p.ip || '', p.vlan || '', cableOf(inst.id, p.id)]);
     }
   }
   return rows;
 }
 function racksRows(ws) {
-  const rows = [['Rack', 'Taille', 'U occupés', 'U libres',
+  const rows = [['Rack', 'Site', 'Taille', 'U occupés', 'U libres',
                  'Puissance totale (W)', 'Budget puissance (W)',
                  'Poids total (kg)', 'Charge max (kg)', 'Devices']];
   for (const rack of sortedRacks(ws)) {
     const usedU = rack.instances.reduce((s, i) => s + i.sizeU, 0);
     rows.push([
-      rack.name, rack.sizeU + 'U', usedU, rack.sizeU - usedU,
+      rack.name, siteName(ws, rack), rack.sizeU + 'U', usedU, rack.sizeU - usedU,
       rack.instances.reduce((s, i) => s + (i.watts || 0), 0) || '',
       rack.maxWatts || '',
       Math.round(rack.instances.reduce((s, i) => s + (i.weightKg || 0), 0) * 10) / 10 || '',
@@ -3859,6 +4735,27 @@ $('#export-csv-ports').addEventListener('click', () => {
   const rows = portsRows(active());
   if (rows.length < 2) { alert('Aucun port étiqueté dans ce workspace : l\'export serait vide.'); return; }
   downloadCsv(rows, 'ports');
+});
+
+$('#export-csv-sites').addEventListener('click', () => {
+  $('#export-menu').classList.add('hidden');
+  const rows = sitesRows(active());
+  if (rows.length < 2) { alert('Aucun site déclaré dans ce workspace : l\'export serait vide.'); return; }
+  downloadCsv(rows, 'sites');
+});
+
+$('#export-csv-nomen').addEventListener('click', () => {
+  $('#export-menu').classList.add('hidden');
+  const rows = [...nomenRows(active()), ...addressingRows(active()).slice(1)];
+  if (rows.length < 3) { alert('Nomenclature et registre VLANs non renseignés (fiche du dossier, onglet Réseau) : l\'export serait vide.'); return; }
+  downloadCsv(rows, 'nomenclature-adressage');
+});
+
+$('#export-csv-flux').addEventListener('click', () => {
+  $('#export-menu').classList.add('hidden');
+  const rows = flowsRows(active());
+  if (rows.length < 2) { alert('Aucun flux défini dans ce workspace (fiche du dossier, onglet Flux) : l\'export serait vide.'); return; }
+  downloadCsv(rows, 'flux');
 });
 
 /* ---------- Générateur Excel .xlsx (OOXML minimal, sans dépendance) ----------
@@ -4028,11 +4925,15 @@ $('#export-xlsx').addEventListener('click', () => {
   const ws = active();
   if (!ws || !ws.racks.length) { alert('Ce workspace ne contient aucun rack à exporter.'); return; }
   const sheets = [
-    { name: 'Inventaire', rows: invRows(ws) },
-    { name: 'Câblage',    rows: cablingRows(ws) },
-    { name: 'Ports',      rows: portsRows(ws) },
-    { name: 'Racks',      rows: racksRows(ws) }
-  ];
+    { name: 'Inventaire',    rows: invRows(ws) },
+    { name: 'Câblage',       rows: cablingRows(ws) },
+    { name: 'Ports',         rows: portsRows(ws) },
+    { name: 'Racks',         rows: racksRows(ws) },
+    { name: 'Sites',         rows: sitesRows(ws) },
+    { name: 'Nomenclature',  rows: nomenRows(ws) },
+    { name: 'Adressage IP',  rows: addressingRows(ws) },
+    { name: 'Flux',          rows: flowsRows(ws) }
+  ].filter(s => s.rows.length > 1);   // feuilles vides omises
   downloadBlob(XLSX.build(sheets), exportFileBase() + '.xlsx');
 });
 
@@ -4093,12 +4994,61 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
 
   const newPage = () => { cur = []; pagesOps.push(cur); y = PH - M; };
 
-  function heading(n, title) {
-    if (y < M + 80) newPage();
-    else y -= 14;
-    txt(M, y - 12, `${n}. ${title}`, 14, true, [0.12, 0.31, 0.47]);
-    hline(M, PW - M, y - 20);
-    y -= 32;
+  // ---- Structure du dossier : 15 chapitres (sommaire généré à la fin) ----
+  const tocEntries = [];   // {label, title, level, pageIdx} — pageIdx AVANT insertion du sommaire
+  const GRAY = [0.45, 0.5, 0.58];
+  function chapter(label, title, opts = {}) {
+    if (opts.flow) {          // chapitre compact : peut rester sur la page en cours
+      if (y < M + 110) newPage(); else y -= 12;
+    } else {
+      newPage();
+    }
+    tocEntries.push({ label: String(label), title, level: 0, pageIdx: pagesOps.length - 1 });
+    txt(M, y - 13, `${label}. ${title}`, 15, true, [0.12, 0.31, 0.47]);
+    hline(M, PW - M, y - 21);
+    y -= 33;
+  }
+  function sub(label, title) {
+    if (y < M + 70) newPage();
+    tocEntries.push({ label: String(label), title, level: 1, pageIdx: pagesOps.length - 1 });
+    txt(M + 14, y - 10, `${label}. ${title}`, 12, true, [0.2, 0.35, 0.5]);
+    y -= 26;
+  }
+  function miniTitle(s) {     // titre de bloc interne (n'apparaît pas au sommaire)
+    if (y < M + 60) newPage(); else y -= 4;
+    txt(M, y - 10, s, 11.5, true, [0.3, 0.4, 0.52]);
+    y -= 22;
+  }
+  function note(s) {          // petite note grise sur une ligne
+    if (y < M + 40) newPage();
+    txt(M, y - 8, s, 9.5, false, GRAY);
+    y -= 22;
+  }
+  function placeholder() { note('Section à compléter.'); }
+  function paragraph(s, size = 10) {   // paragraphe multi-lignes (retours à la ligne conservés)
+    const lh = 15;
+    const maxChars = Math.max(24, Math.floor((PW - 2 * M) / (size * 0.52)));
+    const lines = [];
+    String(s || '').split('\n').forEach(raw => {
+      if (!raw.trim()) { lines.push(''); return; }
+      let line = '';
+      for (const word of raw.trim().split(/\s+/)) {
+        const test = line ? line + ' ' + word : word;
+        if (test.length > maxChars) {
+          if (line) lines.push(line);
+          let w = word;
+          while (w.length > maxChars) { lines.push(w.slice(0, maxChars)); w = w.slice(maxChars); }
+          line = w;
+        } else line = test;
+      }
+      if (line) lines.push(line);
+    });
+    for (const l of lines) {
+      if (y - lh < M + 26) newPage();
+      if (l) txt(M, y - 8, l, size, false, [0.2, 0.24, 0.3]);
+      y -= lh;
+    }
+    y -= 5;
   }
 
   function drawTable(rows, widths, size = 7.5) {
@@ -4179,59 +5129,219 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   y = Math.min(y, M + 24);
   txt(M, y, 'G\u00e9n\u00e9r\u00e9 par LLDraw', 9, false, [0.6, 0.65, 0.72]);
 
-  // ---- 1. Synthèse des racks ----
-  newPage();
-  heading(1, 'Synth\u00e8se des racks (capacit\u00e9s)');
-  drawTable(racksRows(ws), [3, 1.4, 1.5, 1.4, 2, 2, 2, 2, 1.4]);
+  // ================= Chapitres (structure cible : 15 chapitres) =================
 
-  // ---- 2. Inventaire ----
-  heading(2, 'Inventaire des devices');
-  drawTable(invRows(ws), [1.7, 1.5, 0.9, 2.2, 1.6, 2.2, 1.8, 1.6, 1.4, 1.4, 1.2, 1, 0.9]);
+  // ---- 1. Objectif du document ----
+  chapter('1', 'Objectif du document');
+  if (L.objectif.trim()) paragraph(L.objectif);
+  else placeholder();
 
-  // ---- 3. Adressage & ports ----
-  heading(3, 'Plan d\u2019adressage & ports');
-  const pr = portsRows(ws);
-  if (pr.length > 1) drawTable(pr, [1.6, 1.3, 2, 1.6, 1.8, 1.8, 1.1, 1.4]);
-  else { txt(M, y - 8, 'Aucun port \u00e9tiquet\u00e9.', 9.5, false, [0.45, 0.5, 0.58]); y -= 24; }
-
-  // ---- 4. Câblage ----
-  heading(4, 'Tableau de c\u00e2blage');
-  const cr = cablingRows(ws);
-  if (cr.length > 1) drawTable(cr, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
-  else { txt(M, y - 8, 'Aucun c\u00e2ble.', 9.5, false, [0.45, 0.5, 0.58]); y -= 24; }
-
-  // ---- 5. Registre VLANs & subnets ----
-  heading(5, 'Registre VLANs & subnets');
-  if (L.vlans.length) {
-    const vr = [['VLAN', 'Nom', 'Subnet', 'Passerelle', 'Usage']];
-    L.vlans.forEach(v => vr.push([v.vid, v.name, v.subnet, v.gw, v.purpose]));
-    drawTable(vr, [0.9, 2.4, 2.8, 2.4, 3.5], 8);
+  // ---- 2. Aperçu du site ----
+  chapter('2', 'Aperçu du site');
+  sub('2.1', 'Information sur le site');
+  const sites = ws.sites || [];
+  if (sites.length) {
+    const sr = [['Site', 'Adresse', 'Contacts', 'Description']];
+    sites.forEach(s => sr.push([s.name, s.address, s.contact, s.desc]));
+    drawTable(sr, [1.5, 2.7, 2.1, 3.7], 8);
+    miniTitle('Racks par site');
+    const rks = sortedRacks(ws);
+    if (rks.length) {
+      const rr = [['Site', 'Rack', 'Taille', 'U occup\u00e9s', 'U libres', 'Devices', 'Puissance (W)', 'Poids (kg)']];
+      [...rks].sort((a, b) =>
+        (siteName(ws, a) || '\uFFFF').localeCompare(siteName(ws, b) || '\uFFFF', 'fr') ||
+        a.name.localeCompare(b.name, 'fr', { numeric: true })
+      ).forEach(r => {
+        const usedU = r.instances.reduce((s, i) => s + i.sizeU, 0);
+        rr.push([
+          siteName(ws, r) || '\u2014', r.name, r.sizeU + 'U', usedU, r.sizeU - usedU,
+          r.instances.length,
+          r.instances.reduce((s, i) => s + (i.watts || 0), 0) || '',
+          Math.round(r.instances.reduce((s, i) => s + (i.weightKg || 0), 0)) || ''
+        ]);
+      });
+      drawTable(rr, [1.4, 2.2, 0.9, 1, 0.9, 1, 1.4, 1.2], 8);
+    } else {
+      note('Aucun rack dans ce workspace.');
+    }
   } else {
-    txt(M, y - 8, 'Aucun VLAN enregistr\u00e9 (bouton \u00ab Infos du dossier \u00bb du workspace).', 9.5, false, [0.45, 0.5, 0.58]);
-    y -= 24;
+    note('Aucun site d\u00e9clar\u00e9 (fiche du dossier, onglet Sites).');
+  }
+  sub('2.2', 'L\u2019infrastructure existante');
+  if (L.existant.trim()) paragraph(L.existant);
+  else placeholder();
+
+  // ---- 3. Architecture cible ----
+  chapter('3', 'Architecture cible');
+  if (L.architecture.trim()) paragraph(L.architecture);
+  else placeholder();
+  sub('3.1', 'Équipements');
+  miniTitle('Récapitulatif par catégorie');
+  const csr = catSummaryRows(ws);
+  if (csr.length > 1) drawTable(csr, [2.4, 0.6, 3.6, 2.4], 8);
+  else note('Aucun équipement placé dans les racks de ce workspace.');
+  miniTitle('Inventaire détaillé');
+  const ir = invRows(ws);
+  if (ir.length > 1) drawTable(ir, [1.3, 0.85, 0.6, 0.6, 1.6, 1.1, 1.2, 1.55, 1.3, 1.1, 0.9, 0.75, 0.7, 0.65, 0.55]);
+  else note('Aucun équipement placé dans les racks de ce workspace.');
+
+  // ---- 4. Conception Nomenclature et Adressage IP Global ----
+  chapter('4', 'Conception Nomenclature et Adressage IP Global');
+  miniTitle('Nomenclature');
+  if (L.nomen.length) {
+    const nr = [['Type d\u2019objet', 'Préfixe', 'Exemple', 'Règle de nommage']];
+    L.nomen.forEach(r => nr.push([r.type, r.prefix, r.example, r.rule]));
+    drawTable(nr, [2.4, 1.1, 2.6, 3.9], 8);
+  } else note('Nomenclature non renseignée (fiche du dossier, onglet Réseau).');
+  miniTitle('Registre VLANs & subnets');
+  if (L.vlans.length) {
+    const vr = [['VLAN', 'Nom', 'Site', 'Subnet', 'Passerelle', 'Usage']];
+    L.vlans.forEach(v => vr.push([v.vid, v.name, v.site, v.subnet, v.gw, v.purpose]));
+    drawTable(vr, [0.8, 2.1, 1.4, 2.6, 2.2, 2.9], 8);
+  } else note('Aucun VLAN enregistré (fiche du dossier, onglet Réseau).');
+  miniTitle('Plan d\u2019adressage & ports');
+  const pr = portsRows(ws);
+  if (pr.length > 1) drawTable(pr, [1.4, 0.9, 0.8, 1.8, 1.4, 1.6, 1.6, 0.9, 1.2]);
+  else note('Aucun port étiqueté.');
+
+  // ---- 5. Conception et Configuration FAI ----
+  chapter('5', 'Conception et Configuration FAI', { flow: true });
+  sub('5.1', 'Informations & Configuration');
+  {
+    const F = L.fai;
+    const fr = [['Opérateur', F.operator], ['Offre', F.offer], ['Type de lien', F.linkType],
+                ['Débit descendant', F.down], ['Débit montant', F.up],
+                ['Bloc IP publiques', F.publicBlock], ['CPE (modèle)', F.cpe], ['CPE (IP)', F.cpeIp]]
+      .filter(([, v]) => v && v.trim());
+    if (fr.length) {
+      drawTable([['Élément', 'Valeur'], ...fr], [1.5, 3.5], 8.5);
+      if (F.notes.trim()) { miniTitle('Notes de configuration'); paragraph(F.notes); }
+    } else placeholder();
+  }
+  sub('5.2', 'Câblage');
+  const cabFai = cablingRowsByDomain(ws, 'fai');
+  if (cabFai.length > 1) drawTable(cabFai, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+  else note('Aucun câble classé « FAI » (mode Câblage : domaine du câble).');
+
+  // ---- 6. Conception et Configuration Interconnexion site 2 site ----
+  chapter('6', 'Conception et Configuration Interconnexion site 2 site', { flow: true });
+  sub('6.1', 'Informations & Configuration');
+  {
+    const I = L.interco;
+    const icr = [['Technologie', I.tech], ['Endpoint public site A', I.epA], ['Endpoint public site B', I.epB],
+                 ['Subnets locaux (A)', I.localSubnets], ['Subnets distants (B)', I.remoteSubnets],
+                 ['Routage', I.routing], ['Chiffrement', I.encryption]]
+      .filter(([, v]) => v && v.trim());
+    if (icr.length) {
+      drawTable([['Élément', 'Valeur'], ...icr], [1.9, 3.1], 8.5);
+      if (I.notes.trim()) { miniTitle('Notes de configuration'); paragraph(I.notes); }
+    } else placeholder();
+  }
+  sub('6.2', 'Câblage');
+  const cabIc = cablingRowsByDomain(ws, 'interco');
+  if (cabIc.length > 1) drawTable(cabIc, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+  else note('Aucun câble classé « Interconnexion » (mode Câblage : domaine du câble).');
+
+  // ---- 7 à 13 : chapitres par domaine (générés depuis les catégories) ----
+  const CAT_CHAPTERS = [
+    ['7',  'Conception et Configuration Firewall',        ['firewall'],          'firewall'],
+    ['8',  'Conception et Configuration Switching',       ['switch', 'ap'],      'switching'],
+    ['9',  'Conception et Configuration Serveurs',        ['server'],            'server'],
+    ['10', 'Conception et Configuration Stockage',        ['storage'],           'storage'],
+    ['11', 'Conception et Configuration Intrusion (IDS)', ['ids'],               'ids'],
+    ['12', 'Conception et Configuration CCTV',            ['cctv'],              'cctv'],
+    ['13', 'Conception et Configuration Pointage (SPO)',  ['pointage'],          'pointage']
+  ];
+  for (const [num, title, cats, dom] of CAT_CHAPTERS) {
+    chapter(num, title, { flow: true });
+    const notes = L.catNotes[dom] || '';
+    if (notes.trim()) { miniTitle('Notes de configuration'); paragraph(notes); }
+    if (dom === 'switching' && (L.swZones || []).length) {
+      // Sous-chapitres par zone de switching (8.1, 8.2… dans l'ordre des zones)
+      let zi = 0;
+      for (const z of L.swZones) {
+        zi++;
+        sub(`${num}.${zi}`, `Switching (${z.name})`);
+        const zr = catEquipRows(ws, cats, z.id);
+        if (zr.length > 1) drawTable(zr, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
+        else note('Aucun équipement dans cette zone.');
+      }
+      const unz = catEquipRows(ws, cats, '');
+      if (unz.length > 1) {
+        zi++;
+        sub(`${num}.${zi}`, 'Switching (hors zone)');
+        drawTable(unz, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
+      }
+    } else {
+      miniTitle('Équipements');
+      const er = catEquipRows(ws, cats);
+      if (er.length > 1) drawTable(er, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
+      else note('Aucun équipement de cette catégorie dans ce workspace.');
+    }
+    miniTitle('Ports & adressage');
+    const por = portsRowsByCat(ws, cats);
+    if (por.length > 1) drawTable(por, [1.4, 0.9, 0.8, 1.8, 1.4, 1.6, 1.6, 0.9]);
+    else note('Aucun port étiqueté sur ces équipements.');
+    miniTitle('Câblage');
+    const cabD = cablingRowsByDomain(ws, dom);
+    if (cabD.length > 1) drawTable(cabD, [1.3, 1.1, 1.5, 1.8, 1.5, 1.7, 1.5, 1.8, 1.5, 1.7]);
+    else note('Aucun câble classé dans ce domaine (mode Câblage : domaine du câble).');
   }
 
-  // ---- 6. Topologie logique ----
+  // ---- 14. Flux réseau et diagram ----
+  chapter('14', 'Flux réseau et diagram');
+  miniTitle('Matrice des flux');
+  const fr = flowsRows(ws);
+  if (fr.length > 1) drawTable(fr, [1.7, 2.3, 2.3, 1.6, 1.4, 2.7]);
+  else note('Aucun flux défini (fiche du dossier, onglet Flux).');
+  miniTitle('Diagramme de topologie');
   if (topoJpeg && topoW && topoH) {
-    newPage();
-    heading(6, 'Topologie logique');
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / topoW, availH / topoH);
     const iw = topoW * k, ih = topoH * k;
     const ix = M + (availW - iw) / 2, iy = y - ih;
     cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im1 Do Q`);
+  } else {
+    note('Diagramme de topologie non généré (vue Topologie du workspace).');
   }
 
-  // ---- 7. Élévations ----
+  // ---- 15. Câblage / Rack ----
+  chapter('15', 'C\u00e2blage / Rack');
+  miniTitle('Synthèse des racks (capacités)');
+  drawTable(racksRows(ws), [2.4, 1.1, 0.9, 1, 0.9, 1.5, 1.5, 1.4, 1.4, 1]);
+  miniTitle('Tableau de c\u00e2blage');
+  const cr = cablingRows(ws);
+  if (cr.length > 1) drawTable(cr, [1.1, 0.8, 1.15, 1.3, 1.55, 1.3, 1.5, 1.3, 1.55, 1.3, 1.5]);
+  else note('Aucun câble.');
   if (planJpeg && planW && planH) {
     newPage();
-    heading(7, '\u00c9l\u00e9vations des racks');
+    miniTitle('\u00c9l\u00e9vations des racks');
     const availW = PW - 2 * M, availH = y - M - 10;
     const k = Math.min(availW / planW, availH / planH);
     const iw = planW * k, ih = planH * k;
     const ix = M + (availW - iw) / 2, iy = y - ih;
     cur.push(`q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`);
   }
+
+  // ================= Sommaire (inséré en page 2, après la garde) =================
+  // Une page construite à l'index i avant insertion se retrouve en page i + 2
+  // (page de garde = 1, sommaire = 2, première page de contenu = 3).
+  const tocOps = [];
+  let ty = PH - M - 30;
+  tocOps.push(textOp(M, ty, 'Sommaire', 22, true, [0.12, 0.31, 0.47]));
+  ty -= 12;
+  tocOps.push(lineOp(M, PW - M, ty, [0.82, 0.85, 0.89], 1));
+  ty -= 28;
+  for (const e of tocEntries) {
+    const pageNum = e.pageIdx + 2;
+    const x = e.level ? M + 16 : M;
+    const size = e.level ? 9.5 : 10.5;
+    tocOps.push(textOp(x, ty, `${e.label}. ${e.title}`, size, !e.level,
+      e.level ? [0.35, 0.4, 0.48] : [0.13, 0.16, 0.22]));
+    tocOps.push(textOp(PW - M - 20, ty, String(pageNum), size, !e.level, [0.35, 0.4, 0.48]));
+    ty -= e.level ? 14.5 : 18.5;
+  }
+  pagesOps.splice(1, 0, tocOps);
 
   // ---- Pieds de page (toutes les pages sauf la garde) ----
   const nPages = pagesOps.length;
@@ -4281,9 +5391,13 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   addObj(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`);
 
   pagesOps.forEach((ops, i) => {
+    // Une seule entrée /XObject pour les deux images (topologie + élévations) :
+    // définir la clé deux fois rend l'image d'élévations invisible selon les lecteurs.
+    const xobjs = [];
+    if (hasPlan) xobjs.push(`/Im0 ${img0Num} 0 R`);
+    if (hasTopo) xobjs.push(`/Im1 ${img1Num} 0 R`);
     let res = `<< /Font << /F1 3 0 R /F2 4 0 R >>`;
-    if (hasPlan) res += ` /XObject << /Im0 ${img0Num} 0 R >>`;
-    if (hasTopo) res += ` /XObject << /Im1 ${img1Num} 0 R >>`;
+    if (xobjs.length) res += ` /XObject << ${xobjs.join(' ')} >>`;
     res += ` >>`;
     addObj(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources ${res} /Contents ${contentObjs[i]} 0 R >>`);
   });
@@ -4412,6 +5526,30 @@ function doSearch(query) {
         });
       }
     }
+    // Sites (nom, adresse, contacts, description)
+    (ws.sites || []).forEach(site => {
+      const hay = [site.name, site.address, site.contact, site.desc]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'site', ws, site,
+          label: site.name,
+          path: `Site · ${ws.name}`
+        });
+      }
+    });
+    // Flux réseau (nom, source, destination, protocole, usage)
+    (ws.flows || []).forEach(flow => {
+      const hay = [flow.name, flow.src, flow.dst, flow.proto, flow.usage]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) {
+        results.push({
+          type: 'flow', ws, flow,
+          label: flow.name || flow.src || 'Flux',
+          path: `${flow.src || '?'} → ${flow.dst || '?'} · ${ws.name}`
+        });
+      }
+    });
   }
   return results.slice(0, 30);
 }
@@ -4426,8 +5564,9 @@ function renderSearchResults(results, query) {
   results.forEach(r => {
     const item = document.createElement('button');
     item.className = 'sr-item';
+    const SR_TYPES = { device: 'Device', port: 'Port', site: 'Site', flow: 'Flux' };
     item.innerHTML = `
-      <span class="sr-type ${r.type === 'port' ? 'port' : ''}">${r.type === 'port' ? 'Port' : 'Device'}</span>
+      <span class="sr-type ${r.type}">${SR_TYPES[r.type] || '?'}</span>
       <span class="sr-body">
         <span class="sr-name"></span>
         <span class="sr-path"></span>
@@ -4458,6 +5597,16 @@ document.addEventListener('pointerdown', e => {
 
 // Centre la vue sur un rack et fait clignoter le résultat
 function focusOnResult(r) {
+  if (r.type === 'site' || r.type === 'flow') {
+    // Site ou flux : ouvrir la fiche du dossier sur l'onglet correspondant
+    if (state.activeWorkspaceId !== r.ws.id) {
+      openWorkspace(r.ws.id);
+    }
+    hideHome();
+    openLldModal();
+    lldShowTab(r.type === 'site' ? 'sites' : 'flux');
+    return;
+  }
   if (state.activeWorkspaceId !== r.ws.id) {
     openWorkspace(r.ws.id);
   }
