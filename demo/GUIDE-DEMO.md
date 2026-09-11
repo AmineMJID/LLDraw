@@ -20,6 +20,7 @@ capacités de LLDraw en une seule session.
 | **Câblage** | 26 cordons, tous raccordés (domaines FAI / LAN / SAN / Mgmt / Firewall) |
 | **Topologie** | 14 nœuds / 14 liens, tunnel SD-WAN SpeedFusion entre sites |
 | **Flux** | 6 flux documentés (NAT, DMZ, réplication NAS, sauvegarde, supervision, SD-WAN) |
+| **Garanties** | 14 garanties suivies — SRV-DELL-01 **expirée**, FW-01 **à renouveler** (< 90 j), le reste actif |
 | **Dossier LLD** | Client, FAI (MT/Inwi), interco, 9 règles de nomenclature, 6 VLANs, 2 sites, notes par chapitre |
 
 ## Parcours de présentation suggéré (~10 min)
@@ -35,8 +36,13 @@ capacités de LLDraw en une seule session.
    devices / ports / sites / flux.
 6. **Fiche LLD** 📘 — tous les onglets remplis : Document, Réseau (FAI,
    interco, nomenclature, VLANs), Sites, Flux, Chapitres (notes + zones).
-7. **Exports** 📤 — PDF LLD (17 pages), XLSX 8 feuilles, CSV (inventaire,
-   câblage, ports, sites, nomenclature, flux).
+7. **Garanties** 🛡️ — survoler les baies : pastilles vertes sur les
+   équipements sous garantie, **orange** sur le FW-01 (UTM à renouveler) et
+   **rouge** sur le SRV-DELL-01 (garantie expirée) ; double-clic sur
+   « Fin de garantie » dans la fiche pour ajuster la date.
+8. **Exports** 📤 — PDF LLD (17 pages, avec le tableau *Suivi des garanties* au
+   ch. 3.1), XLSX 9 feuilles, CSV (inventaire, câblage, ports, sites,
+   garanties, nomenclature, flux).
 
 ## Fichiers
 

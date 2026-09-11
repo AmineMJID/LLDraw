@@ -85,7 +85,8 @@ via localStorage, en secours).
      devices et ports ;
    - **Document LLD (PDF)** — le dossier complet, multi-pages, structuré en
      **15 chapitres** avec **sommaire** (numéros de page) : 1. Objectif,
-     2. Aperçu du site, 3. Architecture cible (+ 3.1 Équipements/inventaire),
+     2. Aperçu du site, 3. Architecture cible (+ 3.1 Équipements/inventaire et
+     suivi des garanties),
      4. Nomenclature & adressage IP global, 5. FAI, 6. Interconnexion
      site 2 site, 7. Firewall, 8. Switching (5 sous-sections), 9. Serveurs,
      10. Stockage, 11. IDS, 12. CCTV, 13. Pointage, 14. Flux réseau &
@@ -95,13 +96,14 @@ via localStorage, en secours).
      « Section à compléter ». Pieds de page numérotés (date, page X/Y).
      Généré sans dépendance (PDF natif).
    - **Classeur Excel (.xlsx)** — un vrai fichier Excel (écrit sans dépendance)
-     avec jusqu'à 8 feuilles : *Inventaire*, *Câblage*, *Ports*, *Racks*,
-     *Sites*, *Nomenclature*, *Adressage IP* et *Flux* (en-têtes stylés,
-     largeurs automatiques, première ligne figée ; les feuilles vides sont
-     omises) ;
+     avec jusqu'à 9 feuilles : *Inventaire*, *Câblage*, *Ports*, *Racks*,
+     *Sites*, *Nomenclature*, *Adressage IP*, *Garanties* et *Flux*
+     (en-têtes stylés, largeurs automatiques, première ligne figée ; les
+     feuilles vides sont omises) ;
    - **Inventaire (CSV)** — tableau de tous les devices posés (rack, site,
      étage, taille, nom, catégorie, marque, modèle, référence, n° série,
-     IP mgmt, VLAN, puissance, poids, nombre de ports) ;
+     IP mgmt, VLAN, puissance, poids, garantie/contrat, fin de garantie,
+     statut de garantie, nombre de ports) ;
    - **Câblage (CSV)** — tableau des cordons (ID, couleur, extrémités A/B :
      rack, device, port, étiquette) ;
    - **Ports & étiquettes (CSV)** — tous les ports avec rack, site, étage,
@@ -110,6 +112,9 @@ via localStorage, en secours).
      nombre de racks) ;
    - **Nomenclature & adressage (CSV)** — table de nomenclature puis registre
      VLANs & subnets ;
+   - **Garanties (CSV)** — suivi des échéances de garantie de tous les devices
+     (rack, site, étage, device, n° série, contrat, fin de garantie, statut /
+     échéance), trié de la plus proche échéance à la plus lointaine ;
    - **Flux réseau (CSV)** — matrice des flux (source, destination,
      protocole/ports, sens, usage).
    Les CSV sont au format Excel français (séparateur `;`, UTF-8 BOM).
@@ -121,9 +126,19 @@ via localStorage, en secours).
    `SW-CORE-01` → Switch, `SRV-…` → Serveur…) ; les anciens devices sont
    migrés de la même façon à l'ouverture.
    Une **fiche d'inventaire** optionnelle complète le modèle : marque, modèle,
-   référence constructeur, n° série, IP management, VLAN(s), puissance (W) et
-   poids (kg). Ces champs sont recopiés sur chaque exemplaire posé dans un rack
-   (et restent modifiables individuellement depuis la fiche de survol).
+   référence constructeur, n° série, IP management, VLAN(s), puissance (W),
+   poids (kg), **fin de garantie** (sélecteur de date) et **garantie / contrat**
+   (ex. « Constructeur 3 ans — NBD »). Ces champs sont recopiés sur chaque
+   exemplaire posé dans un rack (et restent modifiables individuellement depuis
+   la fiche de survol).
+   - **Suivi des garanties** : sous le champ *Fin de garantie*, la modale
+     affiche le statut recalculé en direct — **✅ Garantie active**,
+     **⚠️ à renouveler** (échéance dans 90 jours ou moins) ou
+     **⛔ expirée**. Chaque device posé porte une **pastille 🛡️ colorée**
+     (verte / orange / rouge) dans son coin supérieur gauche, reprise dans la
+     fiche de survol et dans le tableau **Suivi des garanties** du chapitre 3.1
+     du dossier LLD (page de garde : compteurs « garanties à renouveler » et
+     « garanties expirées »).
    La **bibliothèque** affiche la catégorie de chaque modèle (icône) et peut
    être **filtrée par catégorie** ; le device WatchGuard permanent est
    pré-classé « Firewall ».
@@ -146,6 +161,10 @@ via localStorage, en secours).
      (replacé automatiquement au plus près s'il faut de la place), la catégorie
      et la zone (listes déroulantes) ou l'étage de départ (avec contrôle de
      collision). Entrée valide, Échap annule.
+     La section **Garantie** de la fiche donne la **fin de garantie** (colorée
+     selon l'échéance : verte, orange ≤ 90 j, rouge expirée) et le **contrat** ;
+     double-cliquez pour les modifier, avec un sélecteur de date pour l'échéance
+     — les changements de garantie passent par Ctrl+Z comme le reste.
 8. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
    **➕ Créer des ports** (cliquez sur la face avant d'un device pour y poser un port,
    icône RJ45) et **✏️ Modifier les ports** (cliquez sur un port existant pour changer
@@ -324,7 +343,9 @@ seule » pour l'hébergement statique — à committer).
 Le dossier **`demo/`** contient un datacenter de démonstration complet
 (2 baies : 3 Nutanix, 1 Dell R740, 2 NAS, 2 WatchGuard, 2 Peplink, 2 Aruba,
 2 AKCP, 5 panneaux de brassage, 3 passe-câbles à brosse, 26 cordons, 14 nœuds
-de topologie, 6 flux et un dossier LLD intégralement rempli) ainsi que le PDF
+de topologie, 6 flux, des garanties suivies — dont une **expirée** (Dell R740)
+et une **à renouveler** (UTM du FW-01) — et un dossier LLD intégralement
+rempli) ainsi que le PDF
 LLD généré et un guide de présentation — voir `demo/GUIDE-DEMO.md`.
 Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
 à la demande (les données de démonstration ne sont pas versionnées).

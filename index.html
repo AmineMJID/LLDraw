@@ -10,7 +10,7 @@
   <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#3b82f6">
-  <link rel="stylesheet" href="styles.css?v=48">
+  <link rel="stylesheet" href="styles.css?v=49">
 </head>
 <body>
   <header class="topbar">
@@ -66,6 +66,7 @@
           <button id="export-csv-cab">🔌 <span>Câblage (CSV)</span></button>
           <button id="export-csv-ports">🗂️ <span>Ports &amp; étiquettes (CSV)</span></button>
           <button id="export-csv-sites">🏢 <span>Sites (CSV)</span></button>
+          <button id="export-csv-warranty">🛡️ <span>Garanties (CSV)</span></button>
           <button id="export-csv-nomen">🏷️ <span>Nomenclature &amp; adressage (CSV)</span></button>
           <button id="export-csv-flux">🔄 <span>Flux réseau (CSV)</span></button>
         </div>
@@ -295,6 +296,9 @@
           <div class="dp-sec">Réseau</div>
           <div class="dp-row"><span class="dp-lbl">IP mgmt</span><span class="dp-val editable" id="dp-ip">—</span></div>
           <div class="dp-row"><span class="dp-lbl">VLAN(s)</span><span class="dp-val editable" id="dp-vlan">—</span></div>
+          <div class="dp-sec">Garantie</div>
+          <div class="dp-row"><span class="dp-lbl">Fin de garantie</span><span class="dp-val editable" id="dp-warranty-end">—</span></div>
+          <div class="dp-row"><span class="dp-lbl">Contrat</span><span class="dp-val editable" id="dp-warranty">—</span></div>
           <div class="dp-sec">Énergie</div>
           <div class="dp-row"><span class="dp-lbl">Puissance</span><span class="dp-val editable" id="dp-watts">—</span></div>
           <div class="dp-row"><span class="dp-lbl">Poids</span><span class="dp-val editable" id="dp-kg">—</span></div>
@@ -575,6 +579,13 @@
         <label>N° série
           <input id="d-serial" type="text" placeholder="SN" maxlength="60">
         </label>
+        <label>Fin de garantie
+          <input id="d-warranty-end" type="date" title="Date de fin de garantie constructeur ou contrat">
+        </label>
+        <label>Garantie / contrat
+          <input id="d-warranty" type="text" placeholder="Ex : Constructeur 3 ans — NBD" maxlength="60">
+        </label>
+        <div id="d-warranty-hint" class="d-warranty-hint hidden"></div>
         <label>IP management
           <input id="d-ip" type="text" placeholder="Ex : 10.20.30.1" maxlength="45">
         </label>
@@ -610,6 +621,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=48"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>

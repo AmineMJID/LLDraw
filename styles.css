@@ -1069,6 +1069,30 @@ body.cabling .port.connectable {
   left: 28px;
 }
 
+/* Pastille de garantie (sur chaque device posé : verte/orange/rouge) */
+.warranty-badge {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 6;
+  width: 15px; height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, .5);
+  background: rgba(22, 163, 74, .92);       /* garantie active */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  opacity: .8;
+  pointer-events: none;                      /* ne masque jamais un port */
+  transition: opacity .15s;
+}
+.device:hover .warranty-badge { opacity: 1; }
+.warranty-badge.soon    { background: rgba(217, 119, 6, .95); }   /* ≤ 90 jours */
+.warranty-badge.expired { background: rgba(220, 38, 38, .95); }   /* échue */
+
 .device-del {
   position: absolute;
   top: 3px;
@@ -1265,6 +1289,10 @@ body.label-edit   .device-del { display: none; }
   color: var(--accent, #2563eb);
   border-bottom-color: var(--accent, #2563eb);
 }
+/* Statut de garantie dans la fiche du device */
+.dp-val.w-ok      { color: var(--green); }
+.dp-val.w-soon    { color: var(--amber); }
+.dp-val.w-expired { color: var(--red); }
 .dp-input {
   width: 118px;
   font: inherit;
@@ -1455,6 +1483,17 @@ body.label-edit   .device-del { display: none; }
   margin-bottom: 10px;
 }
 .d-grid label { margin-bottom: 6px; font-size: 11px; }
+/* Rappel du statut de garantie sous les champs (modale device) */
+.d-warranty-hint {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.d-warranty-hint.w-ok      { color: var(--green); }
+.d-warranty-hint.w-soon    { color: var(--amber); }
+.d-warranty-hint.w-expired { color: var(--red); }
 
 /* ============================================================
    ECRAN D'ACCUEIL — lanceur de workspaces

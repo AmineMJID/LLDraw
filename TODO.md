@@ -219,6 +219,26 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
 - [x] Vérification finale : PDF 15 chapitres dans l'ordre, sommaire exact
       (0 erreur), XLSX validé (ZIP/OOXML, 8 feuilles)
 
+### ✅ Lot 8 — Suivi des garanties (hors plan initial) — **FAIT**
+- [x] **Modèle** : champ **fin de garantie** (date ISO `AAAA-MM-JJ`) + **garantie /
+      contrat** sur les modèles de la bibliothèque **et** chaque exemplaire posé
+      (recopiés au drop, modifiables individuellement) ; normalisation
+      rétro-compatible (dates invalides purgées, anciens états intacts)
+- [x] **Statut recalculé** à l'affichage : ✅ active / ⚠️ à renouveler (≤ 90 j) /
+      ⛔ expirée, avec échéance en jours
+- [x] **Modale device** : sélecteur de date + champ contrat + rappel du statut
+      sous le champ
+- [x] **Fiche de survol** : section **Garantie** (fin de garantie colorée +
+      contrat), édition en double-clic (sélecteur de date), undo/redo
+- [x] **Pastille 🛡️** colorée sur chaque device posé (verte / orange / rouge),
+      sans intercepter les clics (ports, sélection)
+- [x] **Exports** : colonnes *Garantie (contrat)*, *Fin de garantie*, *Statut
+      garantie* dans l'inventaire (CSV / XLSX / PDF ch. 3.1) ; feuille XLSX
+      **Garanties** ; export CSV **Garanties** ; tableau **Suivi des garanties**
+      (trié par échéance) au ch. 3.1 du PDF + compteurs sur la page de garde
+- [x] **Démo** : `demo_datacenter.py` et `demo/demo-state.json` enrichis
+      (14 garanties, dont SRV-DELL-01 expirée et FW-01 à renouveler)
+
 ---
 
 ## 🎉 PROJET TERMINÉ
