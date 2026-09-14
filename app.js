@@ -276,7 +276,7 @@ function warrantyInfo(d) {
 // Libellés des deux états (+ état neutre quand la date n'est pas saisie)
 const WARRANTY_STATUS = {
   in:   { ico: '\u2705', lbl: 'En garantie' },
-  out:  { ico: '\u26d4', lbl: 'Hors de garantie' },
+  out:  { ico: '\u26d4', lbl: 'Hors garantie' },
   none: { ico: '\u2014',  lbl: 'Garantie non renseignée' }
 };
 function warrantyStatusLabel(status) {
@@ -5414,7 +5414,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   const ir = invRows(ws);
   if (ir.length > 1) {
     drawTable(ir, [1.15, 0.75, 0.5, 0.45, 1.4, 0.95, 1.0, 1.25, 1.05, 0.95,
-                   0.8, 0.65, 0.55, 0.55, 1.0, 0.8, 1.6, 0.4], 7.5,
+                   0.8, 0.65, 0.55, 0.55, 0.9, 0.8, 1.7, 0.4], 7.5,
               { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 16, val) });
   } else note('Aucun équipement placé dans les racks de ce workspace.');
   miniTitle('Suivi des garanties');
@@ -5430,7 +5430,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
       // Statut coloré comme dans l'application : vert en garantie, rouge hors garantie
       drawTable(wr, [1.0, 0.75, 0.5, 1.45, 1.1, 1.5, 0.85, 1.0, 0.7], 8,
                 { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 7, val) });
-      note('Légende : statut « En garantie » écrit en vert, « Hors de garantie » en rouge '
+      note('Légende : statut « En garantie » écrit en vert, « Hors garantie » en rouge '
          + '(comme la pastille de garantie affichée sur chaque équipement de l\u2019application).');
     } else {
       note("Aucune garantie renseignée : la fin de garantie et le contrat se saisissent device par device (fiche de survol, double-clic sur « Fin de garantie »).");

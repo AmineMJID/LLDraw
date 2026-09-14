@@ -20,7 +20,7 @@ capacités de LLDraw en une seule session.
 | **Câblage** | 26 cordons, tous raccordés (domaines FAI / LAN / SAN / Mgmt / Firewall) |
 | **Topologie** | 14 nœuds / 14 liens, tunnel SD-WAN SpeedFusion entre sites |
 | **Flux** | 6 flux documentés (NAT, DMZ, réplication NAS, sauvegarde, supervision, SD-WAN) |
-| **Garanties** | 14 garanties suivies — SRV-DELL-01 **hors de garantie** (pastille rouge), FW-01 **arrive à échéance** sous 90 j (encore verte), le reste en garantie |
+| **Garanties** | **22 garanties suivies** (tous les équipements) : 20 en garantie (pastille verte), 2 hors garantie (pastille rouge — SRV-DELL-01 *-45 j*, AKCP-02 *-14 j*) et 2 arrivant à échéance sous 90 j (FW-01, NAS-02 — encore vertes, mention « expire bientôt ») |
 | **Dossier LLD** | Client, FAI (MT/Inwi), interco, 9 règles de nomenclature, 6 VLANs, 2 sites, notes par chapitre |
 
 ## Parcours de présentation suggéré (~10 min)
@@ -36,11 +36,13 @@ capacités de LLDraw en une seule session.
    devices / ports / sites / flux.
 6. **Fiche LLD** 📘 — tous les onglets remplis : Document, Réseau (FAI,
    interco, nomenclature, VLANs), Sites, Flux, Chapitres (notes + zones).
-7. **Garanties** 🛡️ — survoler les baies : **pastille verte** sur les
-   équipements sous garantie et **rouge** sur le SRV-DELL-01 (garantie échue) ;
-   le badge **à côté du nom** dans la fiche donne le statut d'un coup d'œil
-   (survoler la pastille du FW-01 : « dans 31 j (expire bientôt) ») ;
-   double-clic sur « Fin de garantie » dans la fiche pour ajuster la date.
+7. **Garanties** 🛡️ — **chaque** équipement de la démo porte une garantie :
+   survoler la baie → pastille **verte** (en garantie) ou **rouge** (hors
+   garantie : SRV-DELL-01 et AKCP-02) ; le badge **à côté du nom** dans la fiche
+   donne le statut d'un coup d'œil, et sa ligne « Fin de garantie » indique
+   l'échéance (« dans 31 j (expire bientôt » pour le FW-01, « expirée depuis
+   45 j » pour le SRV-DELL-01). Double-clic sur « Fin de garantie » pour
+   ajuster la date.
 8. **Exports** 📤 — PDF LLD (18 pages, avec le tableau *Suivi des garanties* au
    ch. 3.1), XLSX 9 feuilles, CSV (inventaire, câblage, ports, sites,
    garanties, nomenclature, flux).

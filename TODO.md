@@ -225,12 +225,12 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
       (recopiés au drop, modifiables individuellement) ; normalisation
       rétro-compatible (dates invalides purgées, anciens états intacts)
 - [x] **Statut recalculé** à l'affichage en **deux couleurs** : ✅ **En garantie**
-      (vert) / ⛔ **Hors de garantie** (rouge), avec l'échéance en jours ; une
+      (vert) / ⛔ **Hors garantie** (rouge), avec l'échéance en jours ; une
       échéance < 90 j reste verte et porte la mention « expire bientôt »
 - [x] **Modale device** : sélecteur de date + champ contrat + rappel du statut
       sous le champ
 - [x] **Fiche de survol** : **badge à côté du nom** (vert « En garantie » /
-      rouge « Hors de garantie ») + section **Garantie** (fin de garantie écrite
+      rouge « Hors garantie ») + section **Garantie** (fin de garantie écrite
       en vert / rouge + contrat), édition en double-clic (sélecteur de date),
       undo/redo
 - [x] **Pastille 🛡️** sur chaque device posé — vert en garantie, rouge hors
@@ -243,9 +243,10 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
 - [x] **LLD enrichi** : colonnes *Fin de garantie* + *Garantie* (colorée) dans
       les tableaux *Équipements* des chapitres 7 → 13 et colonne *Hors garantie*
       dans le récapitulatif par catégorie du ch. 3.1
-- [x] **Démo** : `demo_datacenter.py` et `demo/demo-state.json` enrichis
-      (14 garanties : SRV-DELL-01 hors garantie → pastille rouge, FW-01 arrivant
-      à échéance sous 90 j, le reste en garantie)
+- [x] **Démo** : `demo_datacenter.py` et `demo/demo-state.json` enrichis —
+      **les 22 équipements portent une garantie** (20 en garantie, 2 hors
+      garantie : SRV-DELL-01 et AKCP-02, 2 échéances < 90 j : FW-01, NAS-02),
+      PDF LLD de démo régénéré en conséquence
 
 - [x] **Vérification** : 57 contrôles jsdom (helpers, modale, fiche, exports,
       PDF, undo, rétro-compatibilité) + 21 contrôles sur la démo réelle — vert

@@ -344,8 +344,8 @@ DEV_WARRANTY = {
     'dev-peplink':          ('Balance Care 5 ans',        '2029-01-31'),
     'dev-aruba':            ('Aruba Care 5 ans',          '2028-12-31'),
     'dev-akcp':             ('Garantie constructeur 2 ans', '2027-05-31'),
-    'dev-pp':               ('', ''),
-    'dev-brush':            ('', ''),
+    'dev-pp':               ('Garantie constructeur 5 ans', '2029-12-31'),
+    'dev-brush':            ('Garantie constructeur 2 ans',  '2028-06-30'),
 }
 
 
@@ -510,10 +510,12 @@ def build():
         make_instance('inst-akcp-b', 'dev-akcp', 'AKCP-02', 4, 'other', 1, akcp2, tpl_akcp,
                       brand='AKCP', model='sensorProbe2+', partRef='SP2+E', serial='SP2E-0454',
                       ipMgmt='10.11.99.14', vlan='VLAN 99 — Mgmt', watts=15, weightKg=1.2,
+                      warranty='Garantie constructeur 2 ans', warrantyEnd='2026-08-31',
                       ips={'eth0': ('10.11.99.14', 'VLAN 99')}),
         make_instance('inst-nas-02', 'dev-nas', 'NAS-02', 5, 'storage', 2, nas2, tpl_nas,
                       brand='Synology', model='RS1221+', partRef='RS1221+-16G', serial='1980LWN48522',
                       ipMgmt='10.11.99.41', vlan='VLAN 99 — Mgmt', watts=250, weightKg=15.6,
+                      warranty='Extension Synology 5 ans', warrantyEnd='2026-11-30',
                       ips={'LAN1': ('10.11.99.41', 'VLAN 99'), 'LAN2': ('10.11.30.12', 'VLAN 30')}),
         make_instance('inst-pp-b2', 'dev-pp', 'BR-B-02', 7, 'patch', 1, ppb2, tpl_pp,
                       brand='MPO', model='PP-24 CAT6A', partRef='PP24-C6A-1U', serial='PPB24-9912',

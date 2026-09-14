@@ -114,7 +114,7 @@ via localStorage, en secours).
      VLANs & subnets ;
    - **Garanties (CSV)** — suivi des garanties de tous les devices (rack, site,
      étage, device, n° série, contrat, fin de garantie, statut « En garantie » /
-     « Hors de garantie », échéance en jours), trié de la plus proche échéance à
+     « Hors garantie », échéance en jours), trié de la plus proche échéance à
      la plus lointaine ;
    - **Flux réseau (CSV)** — matrice des flux (source, destination,
      protocole/ports, sens, usage).
@@ -134,7 +134,7 @@ via localStorage, en secours).
    la fiche de survol).
    - **Suivi des garanties** : sous le champ *Fin de garantie*, la modale
      affiche le statut recalculé en direct — **✅ En garantie** ou
-     **⛔ Hors de garantie**. Chaque device posé porte une **pastille 🛡️**
+     **⛔ Hors garantie**. Chaque device posé porte une **pastille 🛡️**
      dans son coin supérieur gauche, **verte** s'il est encore sous garantie,
      **rouge** dans le cas contraire (les deux seules couleurs, comme demandé).
      Le statut est repris **à côté du nom** dans la fiche de survol, et dans le
@@ -165,7 +165,7 @@ via localStorage, en secours).
      et la zone (listes déroulantes) ou l'étage de départ (avec contrôle de
      collision). Entrée valide, Échap annule.
      **À côté du nom** s'affiche un badge de garantie : **vert « ✅ En garantie »**
-     ou **rouge « ⛔ Hors de garantie »** (gris neutre si la date n'est pas
+     ou **rouge « ⛔ Hors garantie »** (gris neutre si la date n'est pas
      renseignée) — son infobulle donne la date de fin, l'échéance en jours et le
      contrat. La section **Garantie** de la fiche donne la **fin de garantie**
      (écrite en vert / rouge) et le **contrat** ; double-cliquez pour les
@@ -349,10 +349,10 @@ seule » pour l'hébergement statique — à committer).
 Le dossier **`demo/`** contient un datacenter de démonstration complet
 (2 baies : 3 Nutanix, 1 Dell R740, 2 NAS, 2 WatchGuard, 2 Peplink, 2 Aruba,
 2 AKCP, 5 panneaux de brassage, 3 passe-câbles à brosse, 26 cordons, 14 nœuds
-de topologie, 6 flux, des garanties suivies — dont une **hors de garantie**
-(pastille rouge sur le Dell R740) et une **arrivant à échéance** sous 90 j
-(UTM du FW-01, encore verte) — et un dossier LLD intégralement rempli) ainsi
-que le PDF
+de topologie, 6 flux, **22 garanties renseignées** (tous les équipements :
+20 en garantie, 2 hors garantie — Dell R740 et sonde AKCP de la baie B — et
+2 arrivant à échéance sous 90 j, FW-01 et NAS-02) et un dossier LLD
+intégralement rempli) ainsi que le PDF
 LLD généré et un guide de présentation — voir `demo/GUIDE-DEMO.md`.
 Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
 à la demande (les données de démonstration ne sont pas versionnées).
