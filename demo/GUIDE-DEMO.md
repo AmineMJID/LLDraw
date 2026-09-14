@@ -20,6 +20,7 @@ capacités de LLDraw en une seule session.
 | **Câblage** | 26 cordons, tous raccordés (domaines FAI / LAN / SAN / Mgmt / Firewall) |
 | **Topologie** | 14 nœuds / 14 liens, tunnel SD-WAN SpeedFusion entre sites |
 | **Flux** | 6 flux documentés (NAT, DMZ, réplication NAS, sauvegarde, supervision, SD-WAN) |
+| **Garanties** | **22 garanties suivies** (tous les équipements) : 20 en garantie (pastille verte), 2 hors garantie (pastille rouge — SRV-DELL-01 *-45 j*, AKCP-02 *-14 j*) et 2 arrivant à échéance sous 90 j (FW-01, NAS-02 — encore vertes, mention « expire bientôt ») |
 | **Dossier LLD** | Client, FAI (MT/Inwi), interco, 9 règles de nomenclature, 6 VLANs, 2 sites, notes par chapitre |
 
 ## Parcours de présentation suggéré (~10 min)
@@ -35,12 +36,21 @@ capacités de LLDraw en une seule session.
    devices / ports / sites / flux.
 6. **Fiche LLD** 📘 — tous les onglets remplis : Document, Réseau (FAI,
    interco, nomenclature, VLANs), Sites, Flux, Chapitres (notes + zones).
-7. **Exports** 📤 — PDF LLD (17 pages), XLSX 8 feuilles, CSV (inventaire,
-   câblage, ports, sites, nomenclature, flux).
+7. **Garanties** 🛡️ — **chaque** équipement de la démo porte une garantie :
+   survoler la baie → pastille **verte** (en garantie) ou **rouge** (hors
+   garantie : SRV-DELL-01 et AKCP-02) ; le badge **à côté du nom** dans la fiche
+   donne le statut d'un coup d'œil, et sa ligne « Fin de garantie » indique
+   l'échéance (« dans 31 j (expire bientôt » pour le FW-01, « expirée depuis
+   45 j » pour le SRV-DELL-01). Double-clic sur « Fin de garantie » pour
+   ajuster la date.
+8. **Exports** 📤 — PDF LLD (18 pages, avec le tableau *Suivi des garanties* au
+   ch. 3.1), XLSX 9 feuilles, CSV (inventaire, câblage, ports, sites,
+   garanties, nomenclature, flux).
 
 ## Fichiers
 
-- `Datacenter-Demo-LLD.pdf` — dossier LLD complet généré depuis la démo
+- `Datacenter-Demo-LLD.pdf` — dossier LLD complet (18 pages) généré depuis la démo,
+  garanties incluses (tableau *Suivi des garanties* + statuts en vert / rouge)
 - `plan-baies.jpg` / `topologie.jpg` — rendus du plan et du diagramme
   (réutilisables dans des slides)
 - `../demo_datacenter.py` — script qui (re)construit le workspace démo dans
