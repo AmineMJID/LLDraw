@@ -1069,7 +1069,8 @@ body.cabling .port.connectable {
   left: 28px;
 }
 
-/* Pastille de garantie (sur chaque device posé : verte/orange/rouge) */
+/* Pastille de garantie (sur chaque device posé) — DEUX couleurs :
+   verte = en garantie, rouge = hors de garantie */
 .warranty-badge {
   position: absolute;
   top: 3px;
@@ -1083,15 +1084,17 @@ body.cabling .port.connectable {
   line-height: 1;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, .5);
-  background: rgba(22, 163, 74, .92);       /* garantie active */
+  background: rgba(22, 163, 74, .92);        /* vert : en garantie */
   box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
   opacity: .8;
   pointer-events: none;                      /* ne masque jamais un port */
   transition: opacity .15s;
 }
 .device:hover .warranty-badge { opacity: 1; }
-.warranty-badge.soon    { background: rgba(217, 119, 6, .95); }   /* ≤ 90 jours */
-.warranty-badge.expired { background: rgba(220, 38, 38, .95); }   /* échue */
+.warranty-badge.out { background: rgba(220, 38, 38, .95); }   /* rouge : hors de garantie */
+/* L'échéance proche (< 90 j) n'ajoute pas de 3ᵉ couleur : elle est signalée
+   en toutes lettres (« expire bientôt ») dans la fiche, les infobulles et les
+   exports. */
 
 .device-del {
   position: absolute;
@@ -1289,10 +1292,45 @@ body.label-edit   .device-del { display: none; }
   color: var(--accent, #2563eb);
   border-bottom-color: var(--accent, #2563eb);
 }
-/* Statut de garantie dans la fiche du device */
-.dp-val.w-ok      { color: var(--green); }
-.dp-val.w-soon    { color: var(--amber); }
-.dp-val.w-expired { color: var(--red); }
+/* Statut de garantie dans la fiche du device (2 couleurs) */
+.dp-val.w-in   { color: var(--green); }
+.dp-val.w-out  { color: var(--red); }
+.dp-val.w-none { color: var(--muted); }
+
+/* Badge de garantie À CÔTÉ DU NOM dans l'en-tête de la fiche de survol */
+.dp-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.dp-title-row h4 { flex: 0 1 auto; }
+.dp-warranty {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.dp-warranty.in {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.dp-warranty.out {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+.dp-warranty.none {
+  color: var(--muted);
+  background: #eef0f4;
+  border-color: #d6d9e2;
+  font-weight: 700;
+}
 .dp-input {
   width: 118px;
   font: inherit;
@@ -1491,9 +1529,8 @@ body.label-edit   .device-del { display: none; }
   font-weight: 700;
   color: var(--muted);
 }
-.d-warranty-hint.w-ok      { color: var(--green); }
-.d-warranty-hint.w-soon    { color: var(--amber); }
-.d-warranty-hint.w-expired { color: var(--red); }
+.d-warranty-hint.w-in  { color: var(--green); }   /* en garantie */
+.d-warranty-hint.w-out { color: var(--red); }     /* hors de garantie */
 
 /* ============================================================
    ECRAN D'ACCUEIL — lanceur de workspaces

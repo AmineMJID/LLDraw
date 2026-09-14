@@ -112,9 +112,10 @@ via localStorage, en secours).
      nombre de racks) ;
    - **Nomenclature & adressage (CSV)** — table de nomenclature puis registre
      VLANs & subnets ;
-   - **Garanties (CSV)** — suivi des échéances de garantie de tous les devices
-     (rack, site, étage, device, n° série, contrat, fin de garantie, statut /
-     échéance), trié de la plus proche échéance à la plus lointaine ;
+   - **Garanties (CSV)** — suivi des garanties de tous les devices (rack, site,
+     étage, device, n° série, contrat, fin de garantie, statut « En garantie » /
+     « Hors de garantie », échéance en jours), trié de la plus proche échéance à
+     la plus lointaine ;
    - **Flux réseau (CSV)** — matrice des flux (source, destination,
      protocole/ports, sens, usage).
    Les CSV sont au format Excel français (séparateur `;`, UTF-8 BOM).
@@ -132,13 +133,15 @@ via localStorage, en secours).
    exemplaire posé dans un rack (et restent modifiables individuellement depuis
    la fiche de survol).
    - **Suivi des garanties** : sous le champ *Fin de garantie*, la modale
-     affiche le statut recalculé en direct — **✅ Garantie active**,
-     **⚠️ à renouveler** (échéance dans 90 jours ou moins) ou
-     **⛔ expirée**. Chaque device posé porte une **pastille 🛡️ colorée**
-     (verte / orange / rouge) dans son coin supérieur gauche, reprise dans la
-     fiche de survol et dans le tableau **Suivi des garanties** du chapitre 3.1
-     du dossier LLD (page de garde : compteurs « garanties à renouveler » et
-     « garanties expirées »).
+     affiche le statut recalculé en direct — **✅ En garantie** ou
+     **⛔ Hors de garantie**. Chaque device posé porte une **pastille 🛡️**
+     dans son coin supérieur gauche, **verte** s'il est encore sous garantie,
+     **rouge** dans le cas contraire (les deux seules couleurs, comme demandé).
+     Le statut est repris **à côté du nom** dans la fiche de survol, et dans le
+     tableau **Suivi des garanties** du chapitre 3.1 du dossier LLD (statut
+     écrit en vert / rouge, ligne de bilan + compteurs sur la page de garde).
+     Une échéance à moins de 90 jours reste **verte** (le matériel est encore
+     garanti) mais est signalée en toutes lettres : *« expire bientôt »*.
    La **bibliothèque** affiche la catégorie de chaque modèle (icône) et peut
    être **filtrée par catégorie** ; le device WatchGuard permanent est
    pré-classé « Firewall ».
@@ -161,10 +164,13 @@ via localStorage, en secours).
      (replacé automatiquement au plus près s'il faut de la place), la catégorie
      et la zone (listes déroulantes) ou l'étage de départ (avec contrôle de
      collision). Entrée valide, Échap annule.
-     La section **Garantie** de la fiche donne la **fin de garantie** (colorée
-     selon l'échéance : verte, orange ≤ 90 j, rouge expirée) et le **contrat** ;
-     double-cliquez pour les modifier, avec un sélecteur de date pour l'échéance
-     — les changements de garantie passent par Ctrl+Z comme le reste.
+     **À côté du nom** s'affiche un badge de garantie : **vert « ✅ En garantie »**
+     ou **rouge « ⛔ Hors de garantie »** (gris neutre si la date n'est pas
+     renseignée) — son infobulle donne la date de fin, l'échéance en jours et le
+     contrat. La section **Garantie** de la fiche donne la **fin de garantie**
+     (écrite en vert / rouge) et le **contrat** ; double-cliquez pour les
+     modifier, avec un sélecteur de date pour l'échéance — les changements de
+     garantie passent par Ctrl+Z comme le reste.
 8. **Port et étiquetage** : le bouton **🔌 Port et étiquetage ▾** propose deux modes :
    **➕ Créer des ports** (cliquez sur la face avant d'un device pour y poser un port,
    icône RJ45) et **✏️ Modifier les ports** (cliquez sur un port existant pour changer
@@ -343,9 +349,10 @@ seule » pour l'hébergement statique — à committer).
 Le dossier **`demo/`** contient un datacenter de démonstration complet
 (2 baies : 3 Nutanix, 1 Dell R740, 2 NAS, 2 WatchGuard, 2 Peplink, 2 Aruba,
 2 AKCP, 5 panneaux de brassage, 3 passe-câbles à brosse, 26 cordons, 14 nœuds
-de topologie, 6 flux, des garanties suivies — dont une **expirée** (Dell R740)
-et une **à renouveler** (UTM du FW-01) — et un dossier LLD intégralement
-rempli) ainsi que le PDF
+de topologie, 6 flux, des garanties suivies — dont une **hors de garantie**
+(pastille rouge sur le Dell R740) et une **arrivant à échéance** sous 90 j
+(UTM du FW-01, encore verte) — et un dossier LLD intégralement rempli) ainsi
+que le PDF
 LLD généré et un guide de présentation — voir `demo/GUIDE-DEMO.md`.
 Le script `demo_datacenter.py` reconstruit ce workspace dans `data/state.json`
 à la demande (les données de démonstration ne sont pas versionnées).
