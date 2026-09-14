@@ -41,13 +41,14 @@ capacités de LLDraw en une seule session.
    le badge **à côté du nom** dans la fiche donne le statut d'un coup d'œil
    (survoler la pastille du FW-01 : « dans 31 j (expire bientôt) ») ;
    double-clic sur « Fin de garantie » dans la fiche pour ajuster la date.
-8. **Exports** 📤 — PDF LLD (17 pages, avec le tableau *Suivi des garanties* au
+8. **Exports** 📤 — PDF LLD (18 pages, avec le tableau *Suivi des garanties* au
    ch. 3.1), XLSX 9 feuilles, CSV (inventaire, câblage, ports, sites,
    garanties, nomenclature, flux).
 
 ## Fichiers
 
-- `Datacenter-Demo-LLD.pdf` — dossier LLD complet généré depuis la démo
+- `Datacenter-Demo-LLD.pdf` — dossier LLD complet (18 pages) généré depuis la démo,
+  garanties incluses (tableau *Suivi des garanties* + statuts en vert / rouge)
 - `plan-baies.jpg` / `topologie.jpg` — rendus du plan et du diagramme
   (réutilisables dans des slides)
 - `../demo_datacenter.py` — script qui (re)construit le workspace démo dans
