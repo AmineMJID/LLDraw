@@ -334,36 +334,17 @@ def make_ports(inst_id, tpl, ips=None):
     return out
 
 
-# Garanties des modèles de la bibliothèque : (contrat, fin de garantie).
-# Un exemplaire peut les surcharger (ex. FW-01, dont l'UTM arrive à échéance).
-DEV_WARRANTY = {
-    'watchguard-permanent': ('UTM WatchGuard 3 ans — NBD', '2028-04-30'),
-    'dev-nutanix':          ('Nutanix 5 ans — NBD 4h',    '2029-06-30'),
-    'dev-dell':             ('ProSupport Plus 3 ans',     '2026-07-31'),
-    'dev-nas':              ('Extension Synology 5 ans',  '2027-03-12'),
-    'dev-peplink':          ('Balance Care 5 ans',        '2029-01-31'),
-    'dev-aruba':            ('Aruba Care 5 ans',          '2028-12-31'),
-    'dev-akcp':             ('Garantie constructeur 2 ans', '2027-05-31'),
-    'dev-pp':               ('Garantie constructeur 5 ans', '2029-12-31'),
-    'dev-brush':            ('Garantie constructeur 2 ans',  '2028-06-30'),
-}
-
-
 def make_instance(inst_id, dev_id, name, slot, cat, sizeU, img, tpl, zone='',
                   brand='', model='', partRef='', serial='', ipMgmt='', vlan='',
-                  watts=0, weightKg=0, ips=None, photo_scale=1,
-                  warranty='', warrantyEnd=''):
+                  watts=0, weightKg=0, ips=None, photo_scale=1):
     # photo : vide — l'application rend la photo du modèle de la bibliothèque
     # (helper instPhoto d'app.js), ce qui allège state.json d'environ 40 %.
-    # Garantie : recopiée du modèle, sauf surcharge explicite de l'exemplaire.
-    w_contract, w_end = DEV_WARRANTY.get(dev_id, ('', ''))
     return {
         'id': inst_id, 'deviceId': dev_id, 'name': name,
         'slot': slot, 'sizeU': sizeU, 'cat': cat, 'zone': zone,
         'photo': '', 'ports': make_ports(inst_id, tpl, ips),
         'brand': brand, 'model': model, 'partRef': partRef, 'serial': serial,
         'ipMgmt': ipMgmt, 'vlan': vlan, 'watts': watts, 'weightKg': weightKg,
-        'warranty': warranty or w_contract, 'warrantyEnd': warrantyEnd or w_end,
     }
 
 
@@ -413,9 +394,6 @@ def build():
              photo=dataurl(img_brush), brand='Rittal', model='DK 7706.500', partRef='7706500',
              serial='', ipMgmt='', vlan='', watts=0, weightKg=0.5, ports=[]),
     ]
-    # Garantie portée par chaque modèle (recopiée sur les exemplaires posés)
-    for d in new_devices:
-        d['warranty'], d['warrantyEnd'] = DEV_WARRANTY.get(d['id'], ('', ''))
 
     # ---------- instances ----------
     # --- RACK-A (siège, 18U) ---
@@ -437,8 +415,7 @@ def build():
     rackA_insts = [
         make_instance('inst-fw-a', 'watchguard-permanent', 'FW-01', 0, 'firewall', 1, fw_a_img, tpl_wg,
                       brand='WatchGuard', model='Firebox M390', partRef='WGM39010', serial='FGC81A0142',
-                      ipMgmt='10.10.99.11', vlan='VLAN 99 — Mgmt', watts=150, weightKg=6.0,
-                      warranty='UTM WatchGuard 3 ans — NBD', warrantyEnd='2026-10-15'),
+                      ipMgmt='10.10.99.11', vlan='VLAN 99 — Mgmt', watts=150, weightKg=6.0),
         make_instance('inst-pp-a1', 'dev-pp', 'BR-A-01', 1, 'patch', 1, ppa1, tpl_pp,
                       brand='MPO', model='PP-24 CAT6A', partRef='PP24-C6A-1U', serial='PPA24-8811',
                       watts=0, weightKg=2.2),
@@ -510,12 +487,10 @@ def build():
         make_instance('inst-akcp-b', 'dev-akcp', 'AKCP-02', 4, 'other', 1, akcp2, tpl_akcp,
                       brand='AKCP', model='sensorProbe2+', partRef='SP2+E', serial='SP2E-0454',
                       ipMgmt='10.11.99.14', vlan='VLAN 99 — Mgmt', watts=15, weightKg=1.2,
-                      warranty='Garantie constructeur 2 ans', warrantyEnd='2026-08-31',
                       ips={'eth0': ('10.11.99.14', 'VLAN 99')}),
         make_instance('inst-nas-02', 'dev-nas', 'NAS-02', 5, 'storage', 2, nas2, tpl_nas,
                       brand='Synology', model='RS1221+', partRef='RS1221+-16G', serial='1980LWN48522',
                       ipMgmt='10.11.99.41', vlan='VLAN 99 — Mgmt', watts=250, weightKg=15.6,
-                      warranty='Extension Synology 5 ans', warrantyEnd='2026-11-30',
                       ips={'LAN1': ('10.11.99.41', 'VLAN 99'), 'LAN2': ('10.11.30.12', 'VLAN 30')}),
         make_instance('inst-pp-b2', 'dev-pp', 'BR-B-02', 7, 'patch', 1, ppb2, tpl_pp,
                       brand='MPO', model='PP-24 CAT6A', partRef='PP24-C6A-1U', serial='PPB24-9912',
@@ -868,8 +843,6 @@ def build():
         'photo': dataurl(WG_BASE), 'permanent': True, 'cat': 'firewall',
         'brand': 'WatchGuard', 'model': 'Firebox M390', 'partRef': 'WGM39010',
         'serial': '', 'ipMgmt': '', 'vlan': '', 'watts': 150, 'weightKg': 6.0,
-        'warranty': DEV_WARRANTY['watchguard-permanent'][0],
-        'warrantyEnd': DEV_WARRANTY['watchguard-permanent'][1],
         'ports': [{'id': 'pd-wg-eth%d' % i, 'name': 'eth%d' % i, 'label': 'eth%d' % i,
                    'xPct': x, 'yPct': 72, 'size': 0.8} for i, x in enumerate((24, 33, 42, 51))],
     }

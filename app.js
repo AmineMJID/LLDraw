@@ -227,97 +227,10 @@ function cableDomainLabel(dom) {
   return (typeof dom === 'string' && CABLE_DOMAIN_MAP[dom]) || 'Général';
 }
 
-/* ---------- Garantie des devices ----------
-   Chaque device (modèle de la bibliothèque ET exemplaire posé) peut porter
-   une date de fin de garantie (stockée à l'ISO « AAAA-MM-JJ ») et un libellé
-   de contrat (ex. « Constructeur 3 ans — NBD »). Le statut est recalculé à
-   chaque affichage, en DEUX couleurs :
-     • vert  = en garantie   (date de fin à venir)
-     • rouge = hors de garantie (date de fin dépassée)
-   Un équipement dont la garantie arrive à échéance sous WARRANTY_SOON_DAYS
-   jours reste vert (il est encore garanti) mais porte la mention « expire
-   bientôt » dans les textes et les exports, pour anticiper le renouvellement. */
-const WARRANTY_SOON_DAYS = 90;
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-// « AAAA-MM-JJ » -> Date locale (ou null si vide / invalide)
-function isoToDate(iso) {
-  if (typeof iso !== 'string' || !ISO_DATE_RE.test(iso)) return null;
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
-}
-function fmtDateFr(iso) {
-  const d = isoToDate(iso);
-  return d ? d.toLocaleDateString('fr-FR') : '';
-}
-// Nombre de jours restants (négatif si la garantie est expirée)
-function daysUntil(iso) {
-  const d = isoToDate(iso);
-  if (!d) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((d - today) / 86400000);
-}
-// { status: 'in' (en garantie, vert) | 'out' (hors garantie, rouge) | 'none',
-//   days, label, soon }
-function warrantyInfo(d) {
-  const iso = d?.warrantyEnd || '';
-  const days = daysUntil(iso);
-  if (days === null) return { status: 'none', days: null, label: '—', soon: false };
-  const out = days < 0;
-  return {
-    status: out ? 'out' : 'in',
-    days,
-    label: fmtDateFr(iso),
-    soon: !out && days <= WARRANTY_SOON_DAYS
-  };
-}
-// Libellés des deux états (+ état neutre quand la date n'est pas saisie)
-const WARRANTY_STATUS = {
-  in:   { ico: '\u2705', lbl: 'En garantie' },
-  out:  { ico: '\u26d4', lbl: 'Hors garantie' },
-  none: { ico: '\u2014',  lbl: 'Garantie non renseignée' }
-};
-function warrantyStatusLabel(status) {
-  return WARRANTY_STATUS[status]?.lbl || WARRANTY_STATUS.none.lbl;
-}
-// Statut pour les tableaux : vide quand la garantie n'est pas renseignée
-function warrantyShortStatus(status) {
-  return (status === 'in' || status === 'out') ? WARRANTY_STATUS[status].lbl : '';
-}
-// Échéance compacte : « -3 j », « 45 j », « aujourd'hui »
-function warrantyDaysText(w) {
-  if (w.status === 'none') return '';
-  return w.days === 0 ? 'aujourd\u2019hui' : `${w.days} j`;
-}
-// « expirée depuis 42 j » / « dans 34 j (expire bientôt) » / « dans 320 j »
-function warrantyRelText(w) {
-  if (w.status === 'none') return '';
-  if (w.days === 0) return 'dernier jour';
-  if (w.days < 0) return `expir\u00e9e depuis ${-w.days} j`;
-  return `dans ${w.days} j` + (w.soon ? ' (expire bient\u00f4t)' : '');
-}
-// « 12/03/2027 · dans 210 j » / « 12/03/2026 · expirée depuis 34 j »
-function warrantyWhenText(d) {
-  const w = warrantyInfo(d);
-  if (w.status === 'none') return '—';
-  return `${w.label} \u00b7 ${warrantyRelText(w)}`;
-}
-// Infobulle du badge (pastille du board, fiche de survol, modale device)
-function warrantyBadgeTitle(d) {
-  const w = warrantyInfo(d);
-  if (w.status === 'none') return 'Garantie non renseignée \u2014 double-cliquez sur \u00ab\u00a0Fin de garantie\u00a0\u00bb';
-  const contract = d?.warranty ? ` \u00b7 ${d.warranty}` : '';
-  return `${warrantyStatusLabel(w.status)} : fin le ${w.label} (${warrantyRelText(w)})${contract}`;
-}
-
 // Champs d'inventaire d'un device (présents sur le modèle ET sur chaque exemplaire)
-const DEV_TEXT_FIELDS = ['brand', 'model', 'partRef', 'serial', 'ipMgmt', 'vlan', 'warranty'];
+const DEV_TEXT_FIELDS = ['brand', 'model', 'partRef', 'serial', 'ipMgmt', 'vlan'];
 function normInvFields(d) {
   for (const k of DEV_TEXT_FIELDS) if (typeof d[k] !== 'string') d[k] = '';
-  // Fin de garantie : date ISO, vidée si absente ou invalide
-  if (!isoToDate(d.warrantyEnd)) d.warrantyEnd = '';
   d.watts = Number.isFinite(d.watts) ? d.watts : 0;
   d.weightKg = Number.isFinite(d.weightKg) ? d.weightKg : 0;
   normCatField(d);
@@ -1441,8 +1354,6 @@ function renderRack(rack) {
           serial: tpl.serial || '',
           ipMgmt: tpl.ipMgmt || '',
           vlan: tpl.vlan || '',
-          warranty: tpl.warranty || '',
-          warrantyEnd: tpl.warrantyEnd || '',
           watts: tpl.watts || 0,
           weightKg: tpl.weightKg || 0,
           ports: (tpl.ports || []).map(p => ({
@@ -1608,18 +1519,6 @@ function renderDevice(rack, inst) {
     port.style.height = (26 * (p.size || 1)) + 'px';
     dev.appendChild(port);
   });
-
-  // Pastille de garantie (2 couleurs) : verte = sous garantie, rouge = hors
-  // de garantie. Visible en permanence ; le détail (date, contrat, échéance)
-  // est dans la fiche de survol du device.
-  const wi = warrantyInfo(inst);
-  if (wi.status !== 'none') {
-    const badge = document.createElement('span');
-    badge.className = 'warranty-badge ' + wi.status;
-    badge.textContent = '\ud83d\udee1\ufe0f';
-    badge.title = warrantyBadgeTitle(inst);
-    dev.appendChild(badge);
-  }
 
   // Bouton de retrait
   const del = document.createElement('button');
@@ -2238,7 +2137,7 @@ let modalPhoto = null;
 
 let modalPorts = [];          // ports détectés sur la photo [{xPct,yPct,size}]
 
-const D_INV_IDS = ['#d-brand', '#d-model', '#d-ref', '#d-serial', '#d-ip', '#d-vlan', '#d-warranty', '#d-warranty-end'];
+const D_INV_IDS = ['#d-brand', '#d-model', '#d-ref', '#d-serial', '#d-ip', '#d-vlan'];
 
 $('#btn-new-device').addEventListener('click', () => {
   editingDeviceId = null;
@@ -2250,7 +2149,6 @@ $('#btn-new-device').addEventListener('click', () => {
   D_INV_IDS.forEach(id => { $(id).value = ''; });
   $('#d-watts').value = '';
   $('#d-kg').value = '';
-  updateWarrantyHint();
   $('#d-photo').value = '';
   $('#d-preview').classList.add('hidden');
   $('#d-detect').classList.add('hidden');
@@ -2276,11 +2174,8 @@ function openEditDeviceModal(device) {
   $('#d-serial').value = device.serial || '';
   $('#d-ip').value = device.ipMgmt || '';
   $('#d-vlan').value = device.vlan || '';
-  $('#d-warranty-end').value = device.warrantyEnd || '';
-  $('#d-warranty').value = device.warranty || '';
   $('#d-watts').value = device.watts || '';
   $('#d-kg').value = device.weightKg || '';
-  updateWarrantyHint();
   $('#d-photo').value = '';
   modalPhoto = device.photo || null;
   modalPorts = [];
@@ -2385,22 +2280,6 @@ $('#d-photo').addEventListener('change', async e => {
   await detectPortsFromPhoto(modalPhoto, editingDeviceId);
 });
 
-// Statut de garantie affiché sous la date dans la modale device
-// (vert = en garantie, rouge = hors de garantie)
-function updateWarrantyHint() {
-  const el = $('#d-warranty-hint');
-  if (!el) return;
-  const w = warrantyInfo({ warrantyEnd: $('#d-warranty-end').value });
-  if (w.status === 'none') {
-    el.textContent = '';
-    el.className = 'd-warranty-hint hidden';
-    return;
-  }
-  el.textContent = `${WARRANTY_STATUS[w.status].ico} ${warrantyStatusLabel(w.status)} \u2014 fin le ${w.label} (${warrantyRelText(w)})`;
-  el.className = 'd-warranty-hint w-' + w.status;
-}
-$('#d-warranty-end').addEventListener('input', updateWarrantyHint);
-
 $('#d-save').addEventListener('click', () => {
   const name = $('#d-name').value.trim();
   if (!name) { $('#d-name').focus(); return; }
@@ -2414,8 +2293,6 @@ $('#d-save').addEventListener('click', () => {
     serial: $('#d-serial').value.trim().slice(0, 60),
     ipMgmt: $('#d-ip').value.trim().slice(0, 45),
     vlan: $('#d-vlan').value.trim().slice(0, 60),
-    warranty: $('#d-warranty').value.trim().slice(0, 60),
-    warrantyEnd: isoToDate($('#d-warranty-end').value) ? $('#d-warranty-end').value : '',
     watts: Math.max(0, parseFloat(String($('#d-watts').value).replace(',', '.')) || 0),
     weightKg: Math.max(0, parseFloat(String($('#d-kg').value).replace(',', '.')) || 0)
   };
@@ -2527,21 +2404,7 @@ function dpSet(id, text) {
 function fillDevicePopover() {
   const { rack, inst } = dpFind();
   if (!rack || !inst) { hideDevicePopover(); return; }
-  const titleEl = $('#dp-title');
-  titleEl.textContent = inst.name;
-  titleEl.title = inst.name;                 // nom complet (le texte peut être tronqué)
-  // Badge de garantie affiché À CÔTÉ DU NOM : vert si l'équipement est encore
-  // sous garantie, rouge s'il en est sorti (gris neutre si la date n'est pas
-  // saisie). L'infobulle donne la date, le contrat et l'échéance en jours.
-  const wBadge = $('#dp-warranty-badge');
-  if (wBadge) {
-    const wi = warrantyInfo(inst);
-    wBadge.className = 'dp-warranty ' + wi.status;
-    wBadge.textContent = wi.status === 'none'
-      ? 'Non renseignée'
-      : `${WARRANTY_STATUS[wi.status].ico} ${warrantyStatusLabel(wi.status)}`;
-    wBadge.title = warrantyBadgeTitle(inst);
-  }
+  $('#dp-title').textContent = inst.name;
   $('#dp-sub').textContent = `${rack.name} · U${inst.slot + 1}${inst.sizeU > 1 ? '–U' + (inst.slot + inst.sizeU) : ''}`;
   $('#dp-thumb').innerHTML = instPhoto(inst)
     ? `<img src="${instPhoto(inst)}" alt="">`
@@ -2561,16 +2424,6 @@ function fillDevicePopover() {
   dpSet('#dp-serial', inst.serial || '—');
   dpSet('#dp-ip', inst.ipMgmt || '—');
   dpSet('#dp-vlan', inst.vlan || '—');
-  // Garantie : date de fin (colorée : vert en garantie, rouge hors garantie)
-  // + libellé de contrat. Le statut est aussi rappelé par le badge du titre.
-  const wi = warrantyInfo(inst);
-  const wEndEl = $('#dp-warranty-end');
-  if (wEndEl) {
-    wEndEl.className = 'dp-val editable w-' + wi.status;
-    wEndEl.title = warrantyBadgeTitle(inst);
-  }
-  dpSet('#dp-warranty-end', warrantyWhenText(inst));
-  dpSet('#dp-warranty', inst.warranty || '—');
   dpSet('#dp-watts', inst.watts ? fmtWatts(inst.watts) : '—');
   dpSet('#dp-kg', inst.weightKg ? String(inst.weightKg).replace('.', ',') + ' kg' : '—');
   dpSet('#dp-ports', String((inst.ports || []).length));
@@ -2650,8 +2503,7 @@ function dpEditSpan(sel, makeInput, commit) {
     span.textContent = '';
     span.appendChild(input);
     input.focus();
-    // input.select() n'est pas supporté par tous les types (ex. champ date)
-    try { if (input.select) input.select(); } catch (err) { /* sélection non supportée */ }
+    if (input.select) input.select();
     let closed = false;
     const close = ok => {
       if (closed) return;
@@ -2827,23 +2679,6 @@ dpTextField('#dp-ref', 'partRef', 60);
 dpTextField('#dp-serial', 'serial', 60);
 dpTextField('#dp-ip', 'ipMgmt', 45);
 dpTextField('#dp-vlan', 'vlan', 60);
-dpTextField('#dp-warranty', 'warranty', 60);
-
-// Fin de garantie : édition par sélecteur de date (valeur ISO stockée)
-dpEditSpan('#dp-warranty-end', inst => {
-  const i = document.createElement('input');
-  i.type = 'date';
-  i.value = inst.warrantyEnd || '';
-  return i;
-}, val => {
-  const { inst } = dpFind();
-  if (!inst) return;
-  const iso = isoToDate(val) ? val : '';
-  if (iso === (inst.warrantyEnd || '')) { fillDevicePopover(); return; }
-  pushHistory();
-  inst.warrantyEnd = iso;
-  dpAfterChange(inst);
-});
 
 // ---------- Puissance / poids (nombres) ----------
 function dpNumField(sel, field, step) {
@@ -4714,55 +4549,19 @@ function sortedRacks(ws) {
 
 function invRows(ws) {
   const rows = [['Rack', 'Site', 'Étage', 'Taille', 'Nom', 'Catégorie', 'Marque', 'Modèle', 'Référence',
-                 'N° série', 'IP mgmt', 'VLAN(s)', 'Puissance (W)', 'Poids (kg)',
-                 'Garantie (contrat)', 'Fin de garantie', 'Statut garantie', 'Ports']];
+                 'N° série', 'IP mgmt', 'VLAN(s)', 'Puissance (W)', 'Poids (kg)', 'Ports']];
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
-    const wi = warrantyInfo(inst);
     rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.sizeU + 'U', inst.name,
                catLabel(inst.cat),
                inst.brand || '', inst.model || '', inst.partRef || '', inst.serial || '',
                inst.ipMgmt || '', inst.vlan || '',
-               inst.watts || '', inst.weightKg || '',
-               inst.warranty || '',
-               wi.status === 'none' ? '' : wi.label,
-               warrantyShortStatus(wi.status),
-               (inst.ports || []).length]);
+               inst.watts || '', inst.weightKg || '', (inst.ports || []).length]);
   }
   return rows;
-}
-
-// Suivi des garanties (échéances, de la plus proche à la plus lointaine) :
-// ch. 3.1 du PDF, feuille « Garanties » du classeur Excel et export CSV.
-function warrantyRows(ws) {
-  const rows = [['Rack', 'Site', 'Étage', 'Device', 'N° série', 'Garantie (contrat)',
-                 'Fin de garantie', 'Garantie', 'Échéance']];
-  const items = sortedRackInstances(ws || { racks: [] })
-    .map(({ rack, inst }) => ({ rack, inst, w: warrantyInfo(inst) }))
-    .filter(x => x.w.status !== 'none');
-  items.sort((a, b) => a.w.days - b.w.days);   // la plus proche échéance en tête
-  for (const { rack, inst, w } of items) {
-    rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name, inst.serial || '',
-               inst.warranty || '', w.label,
-               warrantyStatusLabel(w.status), warrantyDaysText(w)]);
-  }
-  return rows;
-}
-// Bilan des garanties du workspace : { total, in, out, soon, none, without }
-function warrantySummary(ws) {
-  const all = (ws?.racks || []).flatMap(r => r.instances.map(i => warrantyInfo(i)));
-  const known = all.filter(w => w.status !== 'none');
-  return {
-    total: all.length,
-    known: known.length,
-    in: known.filter(w => w.status === 'in').length,
-    out: known.filter(w => w.status === 'out').length,
-    soon: known.filter(w => w.soon).length,
-    without: all.length - known.length
-  };
 }
 // Récapitulatif des équipements par catégorie (ch. 3.1 du PDF)
 function catSummaryRows(ws) {
-  const rows = [['Catégorie', 'Nb', 'Modèles', 'Sites', 'Hors garantie']];
+  const rows = [['Catégorie', 'Nb', 'Modèles', 'Sites']];
   const byCat = new Map();
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
     const c = normCat(inst.cat);
@@ -4774,10 +4573,8 @@ function catSummaryRows(ws) {
     const items = byCat.get(c);
     const models = [...new Set(items.map(x => [x.inst.brand, x.inst.model].filter(Boolean).join(' ')).filter(Boolean))];
     const sites = [...new Set(items.map(x => siteName(ws, x.rack)).filter(Boolean))];
-    const out = items.filter(x => warrantyInfo(x.inst).status === 'out').length;
     rows.push([`${catIcon(c)} ${catLabel(c)}`, items.length,
-               models.join(', ') || '\u2014', sites.join(', ') || '\u2014',
-               out ? String(out) : '\u2014']);
+               models.join(', ') || '\u2014', sites.join(', ') || '\u2014']);
   });
   return rows;
 }
@@ -4791,28 +4588,15 @@ function zoneNameOf(ws, inst) {
 // Équipements d'un chapitre : filtrés par catégories (et par zone de switching).
 // zoneId = null -> toutes les zones ; '' -> hors zone ; sinon id de zone.
 function catEquipRows(ws, cats, zoneId = null) {
-  const rows = [['Rack', 'Site', 'Étage', 'Nom', 'Marque', 'Modèle', 'IP mgmt', 'VLAN(s)',
-                 'Fin de garantie', 'Garantie', 'Ports']];
+  const rows = [['Rack', 'Site', 'Étage', 'Nom', 'Marque', 'Modèle', 'IP mgmt', 'VLAN(s)', 'Ports']];
   for (const { rack, inst } of sortedRackInstances(ws || { racks: [] })) {
     if (!cats.includes(normCat(inst.cat))) continue;
     if (zoneId !== null && (inst.zone || '') !== zoneId) continue;
-    const wi = warrantyInfo(inst);
     rows.push([rack.name, siteName(ws, rack), slotLabel(inst), inst.name,
                inst.brand || '', inst.model || '', inst.ipMgmt || '', inst.vlan || '',
-               wi.status === 'none' ? '' : wi.label,
-               wi.status === 'none' ? '' : warrantyStatusLabel(wi.status),
                (inst.ports || []).length]);
   }
   return rows;
-}
-// Largeurs + coloriage du tableau « Équipements » des chapitres 7 → 13
-// (la colonne « Garantie » est écrite en vert / rouge, colonne n° 9)
-const CAT_EQUIP_WIDTHS = [1.05, 0.7, 0.45, 1.35, 1.0, 1.15, 0.8, 0.75, 0.85, 1.05, 0.45];
-const PDF_GREEN = [0.09, 0.64, 0.29], PDF_RED = [0.86, 0.15, 0.15], PDF_MUTED = [0.42, 0.45, 0.5];
-// Couleur d'une cellule de statut de garantie (deux couleurs, comme l'app)
-function pdfWarrantyCellColor(ci, statusCol, val) {
-  if (ci !== statusCol || !val) return null;
-  return val === WARRANTY_STATUS.in.lbl ? PDF_GREEN : PDF_RED;
 }
 
 // Ports & adressage des équipements d'un chapitre
@@ -4960,12 +4744,6 @@ $('#export-csv-sites').addEventListener('click', () => {
   downloadCsv(rows, 'sites');
 });
 
-$('#export-csv-warranty').addEventListener('click', () => {
-  $('#export-menu').classList.add('hidden');
-  const rows = warrantyRows(active());
-  if (rows.length < 2) { alert("Aucune garantie renseignée : ouvrez la fiche d'un device placé (double-clic sur « Fin de garantie ») ou la fiche d'inventaire de son modèle."); return; }
-  downloadCsv(rows, 'garanties');
-});
 $('#export-csv-nomen').addEventListener('click', () => {
   $('#export-menu').classList.add('hidden');
   const rows = [...nomenRows(active()), ...addressingRows(active()).slice(1)];
@@ -5154,7 +4932,6 @@ $('#export-xlsx').addEventListener('click', () => {
     { name: 'Sites',         rows: sitesRows(ws) },
     { name: 'Nomenclature',  rows: nomenRows(ws) },
     { name: 'Adressage IP',  rows: addressingRows(ws) },
-    { name: 'Garanties',     rows: warrantyRows(ws) },
     { name: 'Flux',          rows: flowsRows(ws) }
   ].filter(s => s.rows.length > 1);   // feuilles vides omises
   downloadBlob(XLSX.build(sheets), exportFileBase() + '.xlsx');
@@ -5274,9 +5051,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     y -= 5;
   }
 
-  // opts.cellColor(ri, ci, value) -> couleur du texte de la cellule
-  // (utilisé pour colorer le statut de garantie : vert / rouge)
-  function drawTable(rows, widths, size = 7.5, opts = {}) {
+  function drawTable(rows, widths, size = 7.5) {
     const rowH = 14;
     const W = PW - 2 * M;
     const total = widths.reduce((a, b) => a + b, 0);
@@ -5295,8 +5070,7 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
         let s = String(c ?? '');
         const maxChars = Math.max(3, Math.floor(cw[i] / (size * 0.5)));
         if (s.length > maxChars) s = s.slice(0, Math.max(2, maxChars - 1)) + '\u2026';
-        const col = opts.cellColor ? opts.cellColor(ri, i, c) : null;
-        txt(x, y - rowH + 4.5, s, size, false, col || undefined);
+        txt(x, y - rowH + 4.5, s, size);
         x += cw[i];
       });
       y -= rowH;
@@ -5339,10 +5113,6 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
     ['Poids estim\u00e9', `${Math.round(totKg)} kg`],
     ['Liens logiques', String((ws.topology?.links || []).length)]
   ];
-  // Garanties : équipements hors de garantie + échéances proches (< 90 j)
-  const wsm = warrantySummary(ws);
-  if (wsm.known) stats.push(['Garanties renseignées', `${wsm.in} en garantie / ${wsm.out} hors garantie`]);
-  if (wsm.soon) stats.push([`Échéances < ${WARRANTY_SOON_DAYS} j`, String(wsm.soon)]);
   stats.forEach(([k, v]) => {
     txt(M, y, k, 10, false, [0.45, 0.5, 0.58]);
     txt(M + 160, y, v, 10, true);
@@ -5408,34 +5178,12 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
   sub('3.1', 'Équipements');
   miniTitle('Récapitulatif par catégorie');
   const csr = catSummaryRows(ws);
-  if (csr.length > 1) drawTable(csr, [2.3, 0.5, 3.3, 2.1, 0.9], 8);
+  if (csr.length > 1) drawTable(csr, [2.4, 0.6, 3.6, 2.4], 8);
   else note('Aucun équipement placé dans les racks de ce workspace.');
   miniTitle('Inventaire détaillé');
   const ir = invRows(ws);
-  if (ir.length > 1) {
-    drawTable(ir, [1.15, 0.75, 0.5, 0.45, 1.4, 0.95, 1.0, 1.25, 1.05, 0.95,
-                   0.8, 0.65, 0.55, 0.55, 0.9, 0.8, 1.7, 0.4], 7.5,
-              { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 16, val) });
-  } else note('Aucun équipement placé dans les racks de ce workspace.');
-  miniTitle('Suivi des garanties');
-  {
-    const wsm = warrantySummary(ws);
-    const wr = warrantyRows(ws);
-    if (wr.length > 1) {
-      // Bilan chiffré : équipements en garantie / hors de garantie
-      paragraph(`Sur ${wsm.known} équipement${wsm.known > 1 ? 's' : ''} dont la garantie est renseignée : `
-        + `${wsm.in} en garantie et ${wsm.out} hors de garantie.`
-        + (wsm.soon ? ` ${wsm.soon} garantie${wsm.soon > 1 ? 's arrivent' : ' arrive'} à échéance sous ${WARRANTY_SOON_DAYS} jours.` : '')
-        + (wsm.without ? ` ${wsm.without} équipement${wsm.without > 1 ? 's' : ''} sans date de garantie.` : ''));
-      // Statut coloré comme dans l'application : vert en garantie, rouge hors garantie
-      drawTable(wr, [1.0, 0.75, 0.5, 1.45, 1.1, 1.5, 0.85, 1.0, 0.7], 8,
-                { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 7, val) });
-      note('Légende : statut « En garantie » écrit en vert, « Hors garantie » en rouge '
-         + '(comme la pastille de garantie affichée sur chaque équipement de l\u2019application).');
-    } else {
-      note("Aucune garantie renseignée : la fin de garantie et le contrat se saisissent device par device (fiche de survol, double-clic sur « Fin de garantie »).");
-    }
-  }
+  if (ir.length > 1) drawTable(ir, [1.3, 0.85, 0.6, 0.6, 1.6, 1.1, 1.2, 1.55, 1.3, 1.1, 0.9, 0.75, 0.7, 0.65, 0.55]);
+  else note('Aucun équipement placé dans les racks de ce workspace.');
 
   // ---- 4. Conception Nomenclature et Adressage IP Global ----
   chapter('4', 'Conception Nomenclature et Adressage IP Global');
@@ -5515,19 +5263,19 @@ function buildLldPdf(ws, planJpeg, planW, planH, topoJpeg, topoW, topoH) {
         zi++;
         sub(`${num}.${zi}`, `Switching (${z.name})`);
         const zr = catEquipRows(ws, cats, z.id);
-        if (zr.length > 1) drawTable(zr, CAT_EQUIP_WIDTHS, 7.5, { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 9, val) });
+        if (zr.length > 1) drawTable(zr, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
         else note('Aucun équipement dans cette zone.');
       }
       const unz = catEquipRows(ws, cats, '');
       if (unz.length > 1) {
         zi++;
         sub(`${num}.${zi}`, 'Switching (hors zone)');
-        drawTable(unz, CAT_EQUIP_WIDTHS, 7.5, { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 9, val) });
+        drawTable(unz, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
       }
     } else {
       miniTitle('Équipements');
       const er = catEquipRows(ws, cats);
-      if (er.length > 1) drawTable(er, CAT_EQUIP_WIDTHS, 7.5, { cellColor: (ri, ci, val) => pdfWarrantyCellColor(ci, 9, val) });
+      if (er.length > 1) drawTable(er, [1.6, 1, 0.8, 1.7, 1.3, 1.7, 1.3, 1, 0.6]);
       else note('Aucun équipement de cette catégorie dans ce workspace.');
     }
     miniTitle('Ports & adressage');
