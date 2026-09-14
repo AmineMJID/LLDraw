@@ -1607,6 +1607,32 @@ body.label-edit   .device-del { display: none; }
 .hc-text strong { font-size: 16px; }
 .hc-text small { font-size: 12px; opacity: .85; }
 
+/* Bouton secondaire : (re)charger le workspace de démonstration */
+.home-demo {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 14px 22px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 14px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(20,28,45,.08);
+  transition: transform .12s, box-shadow .12s, border-color .15s;
+}
+.home-demo:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(37,99,235,.18);
+}
+.home-demo:active { transform: translateY(0); }
+.home-demo .hc-plus { background: #eef2ff; font-size: 20px; }
+
 /* Historique */
 .home-history { margin-top: 38px; }
 .home-history h2 {

@@ -837,7 +837,9 @@ def build():
         'lld': lld,
         'view': {'x': 0, 'y': 0, 'scale': 1},
         'viewTouched': False,
-        'updatedAt': 20260908,
+        # Horodatage en millisecondes (l'historique de l'accueil affiche une
+        # date lisible ; 20260908 donnait « 01 janv. 1970 »)
+        'updatedAt': 1788868800000,
     }
 
     # ---------- fusion dans l'état existant ----------

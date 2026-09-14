@@ -416,7 +416,7 @@ function makeWorkspace(name, racks = []) {
 }
 
 function emptyState() {
-  return { devices: [], workspaces: [], activeWorkspaceId: null };
+  return { devices: [], workspaces: [], activeWorkspaceId: null, demoDismissed: false };
 }
 
 // Normalise un état chargé (localStorage ou serveur) : structure,
@@ -469,6 +469,7 @@ function normalizeState(s) {
     const siteIds = new Set(w.sites.map(x => x.id));
     w.racks.forEach(r => { if (r.siteId && !siteIds.has(r.siteId)) r.siteId = ''; });
     if (typeof w.updatedAt !== 'number') w.updatedAt = 0;
+    w.bundled = !!w.bundled;      // workspace issu de la démo embarquée
     // Vue topologique (diagramme logique) : structure + nettoyage
     if (!w.topology || !Array.isArray(w.topology.nodes) || !Array.isArray(w.topology.links))
       w.topology = { nodes: [], links: [] };
@@ -486,6 +487,9 @@ function normalizeState(s) {
   if (s.activeWorkspaceId && !s.workspaces.some(w => w.id === s.activeWorkspaceId)) {
     s.activeWorkspaceId = s.workspaces[0]?.id ?? null;
   }
+  // La démo embarquée a-t-elle été supprimée volontairement ? Tant que oui,
+  // elle n'est pas rechargée automatiquement (le bouton de l'accueil reste là).
+  s.demoDismissed = !!s.demoDismissed && s.workspaces.length === 0;
   return s;
 }
 
@@ -554,13 +558,19 @@ async function bootState() {
     if (hasContent(local)) scheduleServerSave(true);
   } else {
     const local = loadLocalState();
-    if (hasContent(local)) {
-      state = local;
+    if (local.workspaces.length) {
+      state = local;                        // l'utilisateur a ses propres workspaces
     } else {
-      // Hébergement statique (GitHub Pages…) : ni serveur ni sauvegarde
-      // locale -> charger la démo embarquée (demo/demo-state.json, générée
-      // par demo_datacenter.py) pour ne pas démarrer sur un écran vide.
-      state = await loadBundledDemoState();
+      // Hébergement statique (GitHub Pages…) : aucun workspace en local.
+      // On charge alors la démo embarquée (demo/demo-state.json, générée par
+      // demo_datacenter.py) au lieu d'afficher un écran vide — c'est le cas
+      // d'un premier démarrage, mais aussi d'une sauvegarde locale ne
+      // contenant que le device permanent : sans cela, la démo ne
+      // réapparaissait plus jamais. Les devices locaux sont conservés, et si
+      // l'utilisateur a volontairement supprimé la démo, on la laisse
+      // supprimée (bouton « 🎬 Charger la démo » pour la récupérer).
+      const demo = local.demoDismissed ? emptyState() : await loadBundledDemoState();
+      state = demo.workspaces.length ? mergeDemoInto(local, demo) : local;
       if (hasContent(state)) saveState();   // miroir local : les modif. persisteront
     }
     setSaveStatus('local');
@@ -568,17 +578,73 @@ async function bootState() {
 }
 
 // État « démo seule » versionné dans le dépôt : utilisé quand l'application
-// est servie en statique (GitHub Pages) sur un navigateur qui n'a jamais
-// sauvegardé d'état. En file:// le fetch est bloqué : retourne un état vide.
+// est servie en statique (GitHub Pages) et qu'aucun workspace n'est disponible.
+// En file:// le fetch est bloqué : retourne un état vide.
+// Les workspaces chargés sont marqués « bundled » (démo embarquée) pour
+// pouvoir : les reconnaître au moment de la suppression, et éviter d'afficher
+// « Jamais modifié » / 01 janv. 1970 dans l'historique.
 async function loadBundledDemoState() {
   try {
     const res = await fetch('demo/demo-state.json', { cache: 'no-store' });
     if (!res.ok) return emptyState();
     const demo = normalizeState(await res.json());
+    demo.workspaces.forEach(w => {
+      w.bundled = true;
+      // Horodatage manquant ou aberrant (ancienne valeur 20260908 lue comme
+      // des millisecondes) : on prend la date du jour pour l'historique.
+      if (!w.updatedAt || w.updatedAt < 946684800000) w.updatedAt = Date.now();
+    });
     return hasContent(demo) ? demo : emptyState();
   } catch (e) {
     return emptyState();
   }
+}
+
+// Fusionne la démo embarquée dans un état local SANS workspace : les devices
+// de l'utilisateur (bibliothèque) sont conservés, et les modèles de la démo
+// absents de sa bibliothèque y sont ajoutés.
+function mergeDemoInto(local, demo) {
+  const merged = normalizeState(local);
+  const wantedActive = merged.activeWorkspaceId;   // conservé s'il existe encore
+  const known = new Set(merged.devices.map(d => d.id));
+  for (const d of demo.devices) {
+    if (!known.has(d.id)) { merged.devices.push(d); known.add(d.id); }
+  }
+  for (const w of demo.workspaces) {
+    if (!merged.workspaces.some(x => x.id === w.id)) merged.workspaces.push(w);
+  }
+  // Workspace courant : celui de l'utilisateur s'il existe encore, sinon
+  // celui de la démo (le board est ainsi prêt derrière l'écran d'accueil).
+  const hasActive = merged.workspaces.some(w => w.id === wantedActive);
+  if (!hasActive) {
+    merged.activeWorkspaceId = demo.activeWorkspaceId
+      || merged.workspaces[0]?.id || null;
+  }
+  merged.demoDismissed = false;
+  return merged;
+}
+
+// Bouton « 🎬 Charger la démo » de l'écran d'accueil : (re)charge la démo
+// embarquée à tout moment, sans jamais écraser les workspaces existants.
+// Si la démo est déjà présente, elle est simplement ouverte.
+async function loadDemoWorkspace() {
+  const demo = await loadBundledDemoState();
+  if (!demo.workspaces.length) {
+    alert('La démo n’est pas disponible : le fichier demo/demo-state.json est introuvable.\n' +
+          '(Sur un hébergement statique, vérifiez que le dossier demo/ est bien publié.)');
+    return;
+  }
+  const wsId = demo.workspaces[0].id;
+  const already = state.workspaces.find(w => w.id === wsId);
+  if (already) { openWorkspace(wsId); return; }   // pas de doublon
+
+  pushHistory();
+  state = mergeDemoInto(state, demo);
+  state.activeWorkspaceId = wsId;
+  saveState();
+  renderPalette();          // la bibliothèque gagne les devices de la démo
+  renderSiteFilter();
+  openWorkspace(wsId);
 }
 
 function pushToServer() {
@@ -3010,6 +3076,9 @@ function deleteWorkspace(id) {
 
   pushHistory();
   state.workspaces = state.workspaces.filter(w => w.id !== id);
+  // Démo embarquée supprimée : on note l'intention pour ne pas la recharger
+  // automatiquement au prochain démarrage (Ctrl+Z annule, bouton 🎬 pour la rouvrir).
+  if (ws.bundled && !state.workspaces.length) state.demoDismissed = true;
   if (state.activeWorkspaceId === id) {
     state.activeWorkspaceId = state.workspaces[0]?.id ?? null;
   }
@@ -3025,6 +3094,8 @@ function deleteWorkspace(id) {
 
 // Créer et gérer les workspaces se fait depuis l'écran d'accueil.
 $('#home-new').addEventListener('click', createWorkspace);
+// Récupérer la démonstration à tout moment (hébergement statique).
+$('#home-demo').addEventListener('click', loadDemoWorkspace);
 // Le logo et le nom de l'application servent de retour vers les workspaces.
 $('#btn-workspaces').addEventListener('click', showHome);
 

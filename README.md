@@ -39,7 +39,8 @@ via localStorage, en secours).
 ## Utilisation
 
 0. **Écran d'accueil** : au lancement, une page d'accueil affiche un bouton
-   **« Créer un workspace »** et l'**historique de vos workspaces** (cartes triées
+   **« Créer un workspace »**, un bouton **« 🎬 Charger la démo »** (voir plus
+   bas) et l'**historique de vos workspaces** (cartes triées
    par date de modification, avec le nombre de baies / devices et la date).
    Cliquez sur une carte pour ouvrir le workspace, ou sur 🗑 pour le supprimer.
    Cliquez sur le **logo** ou le nom **LLDraw** dans la barre du haut pour revenir à l'accueil à tout moment.
@@ -343,6 +344,24 @@ La démo se régénère sur une machine avec Pillow :
 `python demo_datacenter.py` met à jour `data/state.json` (workspace démo
 ajouté aux données existantes) **et** `demo/demo-state.json` (copie « démo
 seule » pour l'hébergement statique — à committer).
+
+## 🌐 Hébergement statique (GitHub Pages)
+
+Sans `server.py`, l'application fonctionne dans le navigateur (localStorage).
+Au premier démarrage, **le workspace de démonstration est chargé
+automatiquement** depuis `demo/demo-state.json` (publié par le workflow
+`.github/workflows/pages.yml`) pour ne jamais arriver sur un écran vide.
+
+- Le bouton **« 🎬 Charger la démo »** de l'écran d'accueil (re)charge la
+  démonstration à tout moment, sans jamais écraser vos workspaces : les
+  équipements de la démo absents de votre bibliothèque y sont ajoutés, et si
+  la démo est déjà là, elle est simplement ouverte (pas de doublon).
+- Si vous supprimez le workspace de démonstration, il n'est **pas** recréé au
+  rechargement suivant (l'application retient votre choix) ; le bouton permet
+  de le faire revenir.
+- Un état local ne contenant **aucun workspace** (par exemple une sauvegarde
+  réduite au device permanent) déclenche lui aussi le chargement de la démo —
+  c'est ce qui garantit que la démonstration ne disparaît plus.
 
 ## 🎬 Démonstration
 
