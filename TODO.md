@@ -251,6 +251,24 @@ Légende : ✅ existant · 🟡 partiel · ❌ absent
 - [x] **Vérification** : 57 contrôles jsdom (helpers, modale, fiche, exports,
       PDF, undo, rétro-compatibilité) + 21 contrôles sur la démo réelle — vert
 
+### ✅ Lot 9 — Démo en ligne (hébergement statique) — **FAIT**
+- [x] **Workflow Pages** : `demo/demo-state.json` est publié dans l'artefact
+      (il manquait — la démo ne s'affichait qu'en secours) + échec explicite de
+      la CI si le fichier est absent
+- [x] **Démarrage** : un état local sans aucun workspace (ex. sauvegarde ne
+      contenant que le device permanent) ne masque plus la démo ; les devices
+      locaux sont conservés à la fusion
+- [x] **Bouton « 🎬 Charger la démo »** sur l'écran d'accueil : recharge la
+      démonstration à tout moment (fusion non destructive, pas de doublon,
+      Ctrl+Z compatible)
+- [x] **Suppression volontaire respectée** : la démo supprimée n'est pas
+      recréée au rechargement (`demoDismissed`), le bouton la rouvre
+- [x] Correctifs : horodatage de la démo (`20260908` lu comme des
+      millisecondes → « 01 janv. 1970 »), `activeWorkspaceId` conservé après fusion
+- [x] Vérifié par un **test de bout en bout** qui sert le contenu exact publié
+      par le workflow et charge la page comme un navigateur (démo, 22 pastilles
+      de garantie, reprise après suppression)
+
 ---
 
 ## 🎉 PROJET TERMINÉ
